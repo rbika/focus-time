@@ -3,6 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Hourglass, Pause, Play, Timer, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { CROSSFADE_NUDGE_PX } from '@/features/crossfade/crossfade'
+import { CrossfadeSlot } from '@/features/crossfade/crossfade-slot'
+import { useCrossfade } from '@/features/crossfade/use-crossfade'
 import { DurationInput } from '@/features/timer/duration-input'
 import { ModeSwitch } from '@/features/timer/mode-switch'
 import {
@@ -25,6 +28,22 @@ export function TimerView({ active }: { active: boolean }) {
   const discard = useTimerStore((s) => s.actions.discard)
   const setDuration = useTimerStore((s) => s.actions.setDuration)
   const setMode = useTimerStore((s) => s.actions.setMode)
+  const modeFade = useCrossfade(
+    'timer',
+    'stopwatch',
+    snapshot?.mode === 'stopwatch' ? 'stopwatch' : 'timer',
+    CROSSFADE_NUDGE_PX,
+    snapshot != null,
+  )
+  const runFade = useCrossfade(
+    'idle',
+    'running',
+    snapshot?.status === 'running' || snapshot?.status === 'paused'
+      ? 'running'
+      : 'idle',
+    0,
+    snapshot != null,
+  )
 
   const [mask, setMask] = useState('00:00:00')
   const [dialog, setDialog] = useState<'closed' | 'open' | 'closing'>('closed')
@@ -271,7 +290,6 @@ export function TimerView({ active }: { active: boolean }) {
 
   const isRunning = snapshot.status === 'running'
   const isPaused = snapshot.status === 'paused'
-  const isActive = isRunning || isPaused
   const isStopwatch = snapshot.mode === 'stopwatch'
   const canStart = isStopwatch || maskToSecs(mask) > 0
   const endsAt = isRunning
@@ -286,9 +304,14 @@ export function TimerView({ active }: { active: boolean }) {
 
   return (
     <div className="flex h-full flex-col">
-      <main className="flex flex-1 flex-col items-center justify-between gap-2 px-4 pt-1 pb-4">
-        {isActive ? (
-          <div className="flex h-full w-full flex-col items-center justify-between gap-3">
+      <main className="relative min-h-0 flex-1">
+        <CrossfadeSlot
+          frame={runFade.frames.running}
+          animate={runFade.animate}
+          mounted={runFade.mounted.running}
+          className="absolute inset-0"
+        >
+          <div className="flex h-full w-full flex-col items-center justify-between gap-3 px-4 pt-1 pb-4">
             <div
               className={cn(
                 'flex h-7 w-full shrink-0 items-center justify-center gap-1.5 text-sm font-medium text-neutral-900 transition-opacity duration-200 dark:text-neutral-50',
@@ -372,16 +395,23 @@ export function TimerView({ active }: { active: boolean }) {
               </Button>
             </div>
           </div>
-        ) : (
-          <>
-            <div className="flex h-full w-full min-w-0 flex-col items-center justify-between gap-3">
-              <ModeSwitch mode={snapshot.mode} onChange={handleModeChange} />
+        </CrossfadeSlot>
+        <CrossfadeSlot
+          frame={runFade.frames.idle}
+          animate={runFade.animate}
+          mounted={runFade.mounted.idle}
+          className="absolute inset-0"
+        >
+          <div className="flex h-full w-full min-w-0 flex-col items-center justify-between gap-3 px-4 pt-1 pb-4">
+            <ModeSwitch mode={snapshot.mode} onChange={handleModeChange} />
 
-              {isStopwatch ? (
-                <div className="mb-[35px] text-4xl font-light tracking-tight text-neutral-900 tabular-nums opacity-60 dark:text-neutral-50">
-                  00:00:00
-                </div>
-              ) : (
+            <div className="grid w-full place-items-center overflow-hidden">
+              <CrossfadeSlot
+                frame={modeFade.frames.timer}
+                animate={modeFade.animate}
+                mounted={modeFade.mounted.timer}
+                className="col-start-1 row-start-1"
+              >
                 <div className="flex flex-col gap-1.5">
                   <DurationInput
                     value={mask}
@@ -416,30 +446,40 @@ export function TimerView({ active }: { active: boolean }) {
                     </div>
                   ) : null}
                 </div>
-              )}
-
-              <div className="flex w-full items-center justify-center gap-2">
-                <Button
-                  variant="secondary"
-                  disabled
-                  aria-label="Cancel timer"
-                  className="gap-1.5"
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden />
-                </Button>
-                <Button
-                  onClick={() => void handleStart()}
-                  disabled={!canStart}
-                  aria-label="Start"
-                  className="w-28 gap-1.5"
-                >
-                  <Play className="h-3.5 w-3.5" aria-hidden />
-                  Start
-                </Button>
-              </div>
+              </CrossfadeSlot>
+              <CrossfadeSlot
+                frame={modeFade.frames.stopwatch}
+                animate={modeFade.animate}
+                mounted={modeFade.mounted.stopwatch}
+                className="col-start-1 row-start-1"
+              >
+                <div className="mb-[35px] text-center text-4xl font-light tracking-tight text-neutral-900 tabular-nums opacity-60 dark:text-neutral-50">
+                  00:00:00
+                </div>
+              </CrossfadeSlot>
             </div>
-          </>
-        )}
+
+            <div className="flex w-full items-center justify-center gap-2">
+              <Button
+                variant="secondary"
+                disabled
+                aria-label="Cancel timer"
+                className="gap-1.5"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden />
+              </Button>
+              <Button
+                onClick={() => void handleStart()}
+                disabled={!canStart}
+                aria-label="Start"
+                className="w-28 gap-1.5"
+              >
+                <Play className="h-3.5 w-3.5" aria-hidden />
+                Start
+              </Button>
+            </div>
+          </div>
+        </CrossfadeSlot>
       </main>
       {dialog !== 'closed' && snapshot ? (
         <RunningIntervalDialog

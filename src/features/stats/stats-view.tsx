@@ -1,16 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { SquarePenIcon } from 'lucide-react'
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  CROSSFADE_NUDGE_PX,
+  crossfadeStyle,
+} from '@/features/crossfade/crossfade'
+import { CrossfadeSlot } from '@/features/crossfade/crossfade-slot'
+import { useCrossfade } from '@/features/crossfade/use-crossfade'
 import { DashboardTab } from '@/features/stats/dashboard-tab'
 import { EntriesTab } from '@/features/stats/entries-tab'
 import { EntryEditor } from '@/features/stats/entry-editor'
+import { useEditorTransition } from '@/features/stats/use-editor-transition'
 import type { Entry } from '@/lib/tauri'
-import { cn } from '@/utils/cn'
 
-const SLIDE_MS = 180
 const MANUAL_DRAFT_DURATION_SECS = 60
+const PANEL_CLASS = 'absolute inset-0 flex min-h-0 flex-col px-4 pt-1 pb-4'
 
 type StatsTab = 'dashboard' | 'entries'
 
@@ -30,40 +36,37 @@ export function StatsView({ active }: { active: boolean }) {
   const [tab, setTab] = useState<StatsTab>('dashboard')
   const [editing, setEditing] = useState<Entry | null>(null)
   const [creating, setCreating] = useState(false)
-  const [editorOpen, setEditorOpen] = useState(false)
-  const closeTimer = useRef<number | null>(null)
+  const { frames, animate, destination, show, hide, snapToList } =
+    useEditorTransition()
+  const tabs = useCrossfade('dashboard', 'entries', tab, CROSSFADE_NUDGE_PX)
+
+  const dismissEditor = useCallback(() => {
+    setEditing(null)
+    setCreating(false)
+  }, [])
 
   useEffect(() => {
     if (active) return
-    if (closeTimer.current != null) window.clearTimeout(closeTimer.current)
-    setEditorOpen(false)
-    setEditing(null)
-    setCreating(false)
-  }, [active])
+    snapToList()
+    dismissEditor()
+  }, [active, dismissEditor, snapToList])
 
   const openEditor = (entry: Entry) => {
-    if (closeTimer.current != null) window.clearTimeout(closeTimer.current)
     setCreating(false)
     setEditing(entry)
-    setEditorOpen(true)
+    show()
   }
 
   const openCreate = () => {
-    if (closeTimer.current != null) window.clearTimeout(closeTimer.current)
     setCreating(true)
     setEditing(draftManualEntry())
-    setEditorOpen(true)
+    show()
   }
 
   const closeEditor = useCallback(() => {
-    if (closeTimer.current != null) window.clearTimeout(closeTimer.current)
-    setEditorOpen(false)
-    closeTimer.current = window.setTimeout(() => {
-      setEditing(null)
-      setCreating(false)
-      closeTimer.current = null
-    }, SLIDE_MS)
-  }, [])
+    if (destination === 'list') return
+    hide(dismissEditor)
+  }, [destination, dismissEditor, hide])
 
   useEffect(() => {
     if (!active) return
@@ -73,22 +76,21 @@ export function StatsView({ active }: { active: boolean }) {
       }
       if (event.key !== '2') return
       event.preventDefault()
-      if (editorOpen) return
+      if (destination === 'editor') return
       setTab((current) => (current === 'dashboard' ? 'entries' : 'dashboard'))
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, editorOpen])
+  }, [active, destination])
+
+  const editorActive = destination === 'editor' || frames.editor.interactive
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
       <div
-        className={cn(
-          'absolute inset-0 flex min-h-0 flex-col px-4 pt-1 pb-4 transition-transform duration-180 ease-out',
-          editorOpen
-            ? 'pointer-events-none -translate-x-full'
-            : 'translate-x-0',
-        )}
+        className={PANEL_CLASS}
+        style={crossfadeStyle(frames.list, animate)}
+        inert={!frames.list.interactive ? true : undefined}
       >
         <main className="flex min-h-0 flex-1 flex-col">
           <Tabs
@@ -96,7 +98,7 @@ export function StatsView({ active }: { active: boolean }) {
             onValueChange={(value) => {
               if (value === 'dashboard' || value === 'entries') setTab(value)
             }}
-            className="flex min-h-0 flex-col gap-3"
+            className="min-h-0 flex-1 flex-col gap-3"
           >
             <TabsList className="mx-auto shrink-0">
               <TabsTrigger value="dashboard" className="w-24 text-xs">
@@ -106,36 +108,44 @@ export function StatsView({ active }: { active: boolean }) {
                 Entries
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="dashboard" className="min-h-0">
-              <DashboardTab />
-            </TabsContent>
-            <TabsContent
-              value="entries"
-              className="flex min-h-0 flex-1 flex-col gap-1"
-            >
-              <button
-                type="button"
-                onClick={openCreate}
-                className="flex shrink-0 items-center gap-1 self-start rounded-sm text-[13px] text-neutral-400 transition-colors hover:text-neutral-600 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-neutral-500 dark:hover:text-neutral-300"
+            <div className="relative min-h-0 flex-1 overflow-hidden">
+              <CrossfadeSlot
+                frame={tabs.frames.dashboard}
+                animate={tabs.animate}
+                mounted={tabs.mounted.dashboard}
+                className="absolute inset-0"
               >
-                <SquarePenIcon className="h-3.5 w-3.5 shrink-0" /> Add entry
-              </button>
-              <EntriesTab onOpenEntry={openEditor} />
-            </TabsContent>
+                <DashboardTab />
+              </CrossfadeSlot>
+              <CrossfadeSlot
+                frame={tabs.frames.entries}
+                animate={tabs.animate}
+                mounted={tabs.mounted.entries}
+                className="absolute inset-0 flex min-h-0 flex-col gap-1"
+              >
+                <button
+                  type="button"
+                  onClick={openCreate}
+                  className="flex shrink-0 items-center gap-1 self-start rounded-sm text-[13px] text-neutral-400 transition-colors hover:text-neutral-600 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-neutral-500 dark:hover:text-neutral-300"
+                >
+                  <SquarePenIcon className="h-3.5 w-3.5 shrink-0" /> Add entry
+                </button>
+                <EntriesTab onOpenEntry={openEditor} />
+              </CrossfadeSlot>
+            </div>
           </Tabs>
         </main>
       </div>
       <div
-        className={cn(
-          'absolute inset-0 flex min-h-0 flex-col px-4 pt-1 pb-4 transition-transform duration-180 ease-out',
-          editorOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full',
-        )}
+        className={PANEL_CLASS}
+        style={crossfadeStyle(frames.editor, animate)}
+        inert={!frames.editor.interactive ? true : undefined}
       >
         {editing ? (
           <EntryEditor
             entry={editing}
             creating={creating}
-            active={editorOpen}
+            active={editorActive}
             onClose={closeEditor}
           />
         ) : null}

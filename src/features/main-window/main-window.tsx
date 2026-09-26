@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { WindowTitleBar } from '@/components/window-title-bar'
+import { crossfadeFrames, crossfadeStyle } from '@/features/crossfade/crossfade'
+import { usePrefersReducedMotion } from '@/features/crossfade/use-prefers-reduced-motion'
 import { StatsView } from '@/features/stats/stats-view'
 import { TimerView } from '@/features/timer/timer-view'
 import { api } from '@/lib/tauri'
 import type { MainView } from '@/lib/tauri'
 import { useTimerStore } from '@/store/timer-store'
-import { cn } from '@/utils/cn'
 
 export function MainWindow() {
+  const reducedMotion = usePrefersReducedMotion()
   const [view, setView] = useState<MainView>('timer')
+  const frames = crossfadeFrames('timer', 'stats', view, 0)
+  const animate = !reducedMotion
 
   const switchTo = useCallback(
     (next: MainView) => {
@@ -65,18 +69,16 @@ export function MainWindow() {
       />
       <div className="relative min-h-0 flex-1">
         <div
-          className={cn(
-            'absolute inset-0 transition-opacity duration-200',
-            view === 'timer' ? 'opacity-100' : 'pointer-events-none opacity-0',
-          )}
+          className="absolute inset-0"
+          style={crossfadeStyle(frames.timer, animate)}
+          inert={!frames.timer.interactive ? true : undefined}
         >
-            <TimerView active={view === 'timer'} />
+          <TimerView active={view === 'timer'} />
         </div>
         <div
-          className={cn(
-            'absolute inset-0 transition-opacity duration-200',
-            view === 'stats' ? 'opacity-100' : 'pointer-events-none opacity-0',
-          )}
+          className="absolute inset-0"
+          style={crossfadeStyle(frames.stats, animate)}
+          inert={!frames.stats.interactive ? true : undefined}
         >
           <StatsView active={view === 'stats'} />
         </div>

@@ -29,8 +29,12 @@ Timer, Stopwatch, or Manual. Timer and Stopwatch are copied from the engine when
 
 _Avoid: treating Manual as an engine mode. The menu bar is still only Timer or Stopwatch._
 
+**Entry editor**:
+The Stats surface where an Entry's start and end are written. Add entry and opening an existing Entry are the same surface.
+_Avoid: add-entry screen, edit screen._
+
 **Manual entry**:
-An Entry created from Stats rather than from a finished interval. Not persisted until Save. The create editor has no Delete action.
+An Entry created from Stats rather than from a finished interval. Not persisted until Save. The entry editor has no Delete action while creating one.
 
 **Focused time**:
 The sum of Entry durations, regardless of type (Timer, Stopwatch, or Manual).
