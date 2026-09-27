@@ -8,10 +8,12 @@ Requires **macOS 26 (Tahoe)** or newer.
 
 ## Features
 
-- Live menu bar timer.
-- Light and dark mode support.
+- Menu bar countdown timer and stopwatch.
+- Light and dark mode.
 - Timer state preserved across app restarts.
-- Automatic pausing when your Mac sleeps.
+- Pause when your Mac sleeps.
+- Stats for the day, week, and month.
+- Add, edit, and delete focused-time entries.
 
 ## Installation instructions
 
@@ -31,8 +33,3 @@ npm run tauri dev
 ```
 
 Debug builds load `.env` / `.env.local` from the project root. `ALWAYS_ON_TOP=true` keeps the timer panel visible while you work; set it to `false` for normal hide-on-blur. Release builds ignore these files and never pin.
-
-## Architecture
-
-- **Rust** owns the timer engine, persistence, tray, sleep detection, completion sound, and updater flow.
-- **React** renders the timer panel and settings window only — no countdown polling.
