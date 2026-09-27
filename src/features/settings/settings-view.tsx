@@ -37,7 +37,6 @@ const SETTINGS_TABS = [
   ['timer', 'Timer'],
   ['notifications', 'Notifications'],
   ['shortcuts', 'Shortcuts'],
-  ['updates', 'Updates'],
   ['about', 'About'],
 ] as const
 
@@ -203,6 +202,49 @@ export function SettingsView() {
               </SettingsGroupItem>
             </SettingsGroupContent>
           </SettingsGroup>
+
+          <SettingsGroup>
+            <SettingsGroupTitle>Updates</SettingsGroupTitle>
+            <SettingsGroupContent>
+              <SettingsGroupItem>
+                <SettingsGroupItemLabel htmlFor="auto-check-updates">
+                  Automatically check for updates
+                </SettingsGroupItemLabel>
+                <SettingsGroupItemControl>
+                  <Switch
+                    id="auto-check-updates"
+                    checked={settings.autoCheckForUpdates}
+                    onCheckedChange={(value) =>
+                      update('autoCheckForUpdates', value)
+                    }
+                    aria-label="Automatically check for updates"
+                  />
+                </SettingsGroupItemControl>
+              </SettingsGroupItem>
+              <SettingsGroupItem>
+                <SettingsGroupItemLabel htmlFor="check-now">
+                  Check for updates
+                </SettingsGroupItemLabel>
+                <SettingsGroupItemControl className="gap-2">
+                  <Button
+                    id="check-now"
+                    variant="secondary"
+                    disabled={checking}
+                    onClick={() => {
+                      void api
+                        .checkForUpdates()
+                        .then(setUpdateStatus)
+                        .catch(() => {
+                          // Status events already cover failures.
+                        })
+                    }}
+                  >
+                    Check now
+                  </Button>
+                </SettingsGroupItemControl>
+              </SettingsGroupItem>
+            </SettingsGroupContent>
+          </SettingsGroup>
         </TabsContent>
 
         <TabsContent value="timer" keepMounted className={tabPanelClassName}>
@@ -278,51 +320,6 @@ export function SettingsView() {
 
         <TabsContent value="shortcuts" className={tabPanelClassName}>
           <ShortcutsSection />
-        </TabsContent>
-
-        <TabsContent value="updates" className={tabPanelClassName}>
-          <SettingsGroup>
-            <SettingsGroupTitle>Updates</SettingsGroupTitle>
-            <SettingsGroupContent>
-              <SettingsGroupItem>
-                <SettingsGroupItemLabel htmlFor="auto-check-updates">
-                  Automatically check for updates
-                </SettingsGroupItemLabel>
-                <SettingsGroupItemControl>
-                  <Switch
-                    id="auto-check-updates"
-                    checked={settings.autoCheckForUpdates}
-                    onCheckedChange={(value) =>
-                      update('autoCheckForUpdates', value)
-                    }
-                    aria-label="Automatically check for updates"
-                  />
-                </SettingsGroupItemControl>
-              </SettingsGroupItem>
-              <SettingsGroupItem>
-                <SettingsGroupItemLabel htmlFor="check-now">
-                  Check for updates
-                </SettingsGroupItemLabel>
-                <SettingsGroupItemControl className="gap-2">
-                  <Button
-                    id="check-now"
-                    variant="secondary"
-                    disabled={checking}
-                    onClick={() => {
-                      void api
-                        .checkForUpdates()
-                        .then(setUpdateStatus)
-                        .catch(() => {
-                          // Status events already cover failures.
-                        })
-                    }}
-                  >
-                    Check now
-                  </Button>
-                </SettingsGroupItemControl>
-              </SettingsGroupItem>
-            </SettingsGroupContent>
-          </SettingsGroup>
         </TabsContent>
 
         <TabsContent value="about" className="flex justify-center">
