@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { ChevronLeft } from 'lucide-react'
 
@@ -10,12 +10,13 @@ import {
   SettingsGroupItemLabel,
 } from '@/components/settings-group'
 import { Button } from '@/components/ui/button'
+import { useDialogOverlay } from '@/features/dialog/use-dialog-overlay'
 import {
   fromDatetimeLocalValue,
   toDatetimeLocalValue,
 } from '@/features/stats/datetime-local'
 import { DeleteEntryDialog } from '@/features/stats/delete-entry-dialog'
-import { api, type Entry } from '@/lib/tauri'
+import { api, onMainWindowHidden, type Entry } from '@/lib/tauri'
 import { cn } from '@/utils/cn'
 import { secsToTotalLabel } from '@/utils/time'
 
@@ -33,17 +34,27 @@ export function EntryEditor({ entry, creating, active, onClose }: Props) {
   const [ended, setEnded] = useState(() =>
     toDatetimeLocalValue(entry.endedAtUnix),
   )
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const {
+    frame: dialogFrame,
+    show: showDialog,
+    dismiss: dismissDialog,
+    snap: snapDialog,
+  } = useDialogOverlay()
+  const wasActive = useRef(active)
   const [persistError, setPersistError] = useState<'save' | 'delete' | null>(
     null,
   )
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
+    if (active && !wasActive.current) snapDialog()
+    wasActive.current = active
+  }, [active, snapDialog])
+
+  useEffect(() => {
     if (!active) return
     setStarted(toDatetimeLocalValue(entry.startedAtUnix))
     setEnded(toDatetimeLocalValue(entry.endedAtUnix))
-    setConfirmDelete(false)
     setPersistError(null)
     // Reset only when the editor is opened, not when the stored Entry
     // identity changes behind the local draft.
@@ -55,15 +66,25 @@ export function EntryEditor({ entry, creating, active, onClose }: Props) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      if (confirmDelete) {
-        setConfirmDelete(false)
+      if (dialogFrame.mounted) {
+        dismissDialog()
         return
       }
       onClose()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, confirmDelete, onClose])
+  }, [active, dialogFrame.mounted, dismissDialog, onClose])
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    void onMainWindowHidden(() => snapDialog()).then((fn) => {
+      unlisten = fn
+    })
+    return () => {
+      unlisten?.()
+    }
+  }, [snapDialog])
 
   const startedUnix = fromDatetimeLocalValue(started)
   const endedUnix = fromDatetimeLocalValue(ended)
@@ -108,7 +129,6 @@ export function EntryEditor({ entry, creating, active, onClose }: Props) {
   }
 
   const confirmAndDelete = async () => {
-    setConfirmDelete(false)
     try {
       await api.deleteEntry(entry.id)
       onClose()
@@ -120,7 +140,7 @@ export function EntryEditor({ entry, creating, active, onClose }: Props) {
   return (
     <div
       className="flex h-full min-h-0 flex-col"
-      inert={confirmDelete || !active ? true : undefined}
+      inert={dialogFrame.mounted || !active ? true : undefined}
     >
       <div className="shrink-0">
         <button
@@ -199,7 +219,7 @@ export function EntryEditor({ entry, creating, active, onClose }: Props) {
               type="button"
               variant="ghost"
               className="text-red-600 hover:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/10"
-              onClick={() => setConfirmDelete(true)}
+              onClick={() => showDialog()}
             >
               Delete
             </Button>
@@ -219,12 +239,14 @@ export function EntryEditor({ entry, creating, active, onClose }: Props) {
         </div>
       </div>
 
-      {confirmDelete ? (
-        <DeleteEntryDialog
-          onCancel={() => setConfirmDelete(false)}
-          onConfirm={() => void confirmAndDelete()}
-        />
-      ) : null}
+      <DeleteEntryDialog
+        frame={dialogFrame}
+        onCancel={() => dismissDialog()}
+        onConfirm={() => {
+          dismissDialog()
+          void confirmAndDelete()
+        }}
+      />
     </div>
   )
 }

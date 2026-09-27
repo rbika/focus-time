@@ -6,12 +6,10 @@ import { Button } from '@/components/ui/button'
 import { CROSSFADE_NUDGE_PX } from '@/features/crossfade/crossfade'
 import { CrossfadeSlot } from '@/features/crossfade/crossfade-slot'
 import { useCrossfade } from '@/features/crossfade/use-crossfade'
+import { useDialogOverlay } from '@/features/dialog/use-dialog-overlay'
 import { DurationInput } from '@/features/timer/duration-input'
 import { ModeSwitch } from '@/features/timer/mode-switch'
-import {
-  DIALOG_FADE_MS,
-  RunningIntervalDialog,
-} from '@/features/timer/running-interval-dialog'
+import { RunningIntervalDialog } from '@/features/timer/running-interval-dialog'
 import { TimerProgress } from '@/features/timer/timer-progress'
 import { api, onMainWindowHidden } from '@/lib/tauri'
 import type { TimerMode } from '@/lib/tauri'
@@ -46,10 +44,12 @@ export function TimerView({ active }: { active: boolean }) {
   )
 
   const [mask, setMask] = useState('00:00:00')
-  const [dialog, setDialog] = useState<'closed' | 'open' | 'closing'>('closed')
-  const dialogRef = useRef(dialog)
-  dialogRef.current = dialog
-  const closeTimerRef = useRef<number | null>(null)
+  const {
+    frame: dialogFrame,
+    show: showDialog,
+    dismiss: dismissDialog,
+    snap: snapDialog,
+  } = useDialogOverlay()
   const editingRef = useRef(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const genRef = useRef(0)
@@ -63,23 +63,6 @@ export function TimerView({ active }: { active: boolean }) {
       () => undefined,
     )
     return run
-  }, [])
-
-  const closeDialog = useCallback((immediate: boolean) => {
-    if (dialogRef.current === 'closed') return
-    if (closeTimerRef.current != null) {
-      window.clearTimeout(closeTimerRef.current)
-      closeTimerRef.current = null
-    }
-    if (immediate) {
-      setDialog('closed')
-      return
-    }
-    setDialog('closing')
-    closeTimerRef.current = window.setTimeout(() => {
-      setDialog('closed')
-      closeTimerRef.current = null
-    }, DIALOG_FADE_MS)
   }, [])
 
   const syncDuration = useCallback(
@@ -192,15 +175,11 @@ export function TimerView({ active }: { active: boolean }) {
   const handleCancel = useCallback(() => {
     const current = useTimerStore.getState().snapshot
     if (current?.status === 'running' && current.intervalElapsedSecs > 10) {
-      if (closeTimerRef.current != null) {
-        window.clearTimeout(closeTimerRef.current)
-        closeTimerRef.current = null
-      }
-      setDialog('open')
+      showDialog()
       return
     }
     void reset()
-  }, [reset])
+  }, [showDialog, reset])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -216,7 +195,7 @@ export function TimerView({ active }: { active: boolean }) {
       }
       if (event.metaKey && event.key.toLowerCase() === 's') {
         event.preventDefault()
-        if (dialog !== 'closed' || !snapshot) return
+        if (dialogFrame.mounted || !snapshot) return
         const isActive =
           snapshot.status === 'running' || snapshot.status === 'paused'
         if (isActive) {
@@ -228,7 +207,7 @@ export function TimerView({ active }: { active: boolean }) {
       }
       if (event.metaKey && event.key.toLowerCase() === 'x') {
         if (isTextInput(event.target)) return
-        if (dialog !== 'closed') {
+        if (dialogFrame.mounted) {
           event.preventDefault()
           return
         }
@@ -242,8 +221,8 @@ export function TimerView({ active }: { active: boolean }) {
       }
       if (event.key === 'Escape') {
         event.preventDefault()
-        if (dialog !== 'closed') {
-          closeDialog(false)
+        if (dialogFrame.mounted) {
+          dismissDialog()
           return
         }
         void api.hideTimerWindow()
@@ -252,33 +231,32 @@ export function TimerView({ active }: { active: boolean }) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [snapshot, togglePause, handleStart, handleCancel, dialog, closeDialog])
+  }, [
+    snapshot,
+    togglePause,
+    handleStart,
+    handleCancel,
+    dialogFrame.mounted,
+    dismissDialog,
+  ])
 
   useEffect(() => {
-    if (!active) closeDialog(false)
-  }, [active, closeDialog])
+    if (!active) snapDialog()
+  }, [active, snapDialog])
 
   useEffect(() => {
-    if (snapshot?.status !== 'running') closeDialog(false)
-  }, [snapshot?.status, closeDialog])
+    if (snapshot?.status !== 'running') dismissDialog()
+  }, [snapshot?.status, dismissDialog])
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
-    void onMainWindowHidden(() => closeDialog(true)).then((fn) => {
+    void onMainWindowHidden(() => snapDialog()).then((fn) => {
       unlisten = fn
     })
     return () => {
       unlisten?.()
     }
-  }, [closeDialog])
-
-  useEffect(() => {
-    return () => {
-      if (closeTimerRef.current != null) {
-        window.clearTimeout(closeTimerRef.current)
-      }
-    }
-  }, [])
+  }, [snapDialog])
 
   if (!ready || !snapshot) {
     return (
@@ -481,15 +459,19 @@ export function TimerView({ active }: { active: boolean }) {
           </div>
         </CrossfadeSlot>
       </main>
-      {dialog !== 'closed' && snapshot ? (
-        <RunningIntervalDialog
-          mode={snapshot.mode}
-          leaving={dialog === 'closing'}
-          onClose={() => closeDialog(false)}
-          onDiscard={() => void discard()}
-          onSave={() => void reset()}
-        />
-      ) : null}
+      <RunningIntervalDialog
+        mode={snapshot.mode}
+        frame={dialogFrame}
+        onClose={() => dismissDialog()}
+        onDiscard={() => {
+          dismissDialog()
+          void discard()
+        }}
+        onSave={() => {
+          dismissDialog()
+          void reset()
+        }}
+      />
     </div>
   )
 }
