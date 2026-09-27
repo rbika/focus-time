@@ -1,6 +1,6 @@
 [package]
 name = "focus-timer"
-version = "1.12.0"
+version = "1.12.1"
 description = "Native macOS menu bar focus timer"
 authors = ["rbika"]
 edition = "2021"
