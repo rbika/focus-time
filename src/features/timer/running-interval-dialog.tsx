@@ -45,11 +45,7 @@ export function RunningIntervalDialog({
           Close
         </Button>
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:text-white dark:hover:bg-red-500"
-            onClick={onDiscard}
-          >
+          <Button type="button" variant="destructive" onClick={onDiscard}>
             Discard
           </Button>
           <Button type="button" onClick={onSave}>

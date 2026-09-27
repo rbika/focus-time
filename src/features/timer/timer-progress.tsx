@@ -11,11 +11,7 @@ type Props = {
  * bar over the seconds it still has, so it moves the instant the timer
  * starts, keeps running between ticks, and reaches empty at the deadline.
  */
-export function TimerProgress({
-  remainingSecs,
-  durationSecs,
-  running,
-}: Props) {
+export function TimerProgress({ remainingSecs, durationSecs, running }: Props) {
   const percent =
     durationSecs > 0
       ? Math.min(100, Math.max(0, (remainingSecs / durationSecs) * 100))

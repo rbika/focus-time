@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { Hourglass, Pause, Play, Timer, X } from 'lucide-react'
+import { BellIcon, Hourglass, Pause, Play, Timer, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { CROSSFADE_NUDGE_PX } from '@/features/crossfade/crossfade'
@@ -299,14 +299,16 @@ export function TimerView({ active }: { active: boolean }) {
             >
               {isStopwatch ? (
                 <>
-                  <Timer className="h-3.5 w-3.5" aria-hidden />
+                  <Timer className="h-4 w-4" aria-hidden />
                   Stopwatch
                 </>
               ) : (
-                <>
-                  <Hourglass className="h-3.5 w-3.5" aria-hidden />
-                  Timer
-                </>
+                <div className="flex w-full items-center justify-center gap-4 px-5">
+                  <div className="flex items-center gap-1.5">
+                    <Hourglass className="h-3.5 w-3.5" aria-hidden />
+                    Timer: {secsToCompact(snapshot.durationSecs)}
+                  </div>
+                </div>
               )}
             </div>
 
@@ -325,27 +327,23 @@ export function TimerView({ active }: { active: boolean }) {
 
               <div
                 className={cn(
-                  'mb-4 flex w-full flex-col items-center gap-3 text-xs text-neutral-500 transition-opacity duration-200 dark:text-neutral-400',
+                  'mb-2 flex w-full flex-col items-center gap-3 text-xs text-neutral-500 transition-opacity duration-200 dark:text-neutral-400',
                   isPaused && 'opacity-60',
                 )}
                 aria-live="polite"
               >
-                {isStopwatch ? (
-                  <span>No end time</span>
-                ) : (
-                  <>
-                    <div className="mt-1 flex w-[80%] items-center gap-1.5">
-                      <span className="w-20 text-right">{endsAt}</span>
-                      <TimerProgress
-                        remainingSecs={snapshot.remainingSecs}
-                        durationSecs={snapshot.durationSecs}
-                        running={isRunning}
-                      />
-                      <span className="w-20 text-left">
-                        {secsToCompact(snapshot.durationSecs)}
-                      </span>
-                    </div>
-                  </>
+                {isStopwatch ? null : (
+                  <div className="mt-2 flex w-44 flex-col items-center gap-1.5">
+                    <TimerProgress
+                      remainingSecs={snapshot.remainingSecs}
+                      durationSecs={snapshot.durationSecs}
+                      running={isRunning}
+                    />
+                    <span className="flex w-20 items-center justify-center gap-1 text-left">
+                      <BellIcon className="mt-px h-3 w-3" aria-hidden />{' '}
+                      {endsAt}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -383,14 +381,14 @@ export function TimerView({ active }: { active: boolean }) {
           <div className="flex h-full w-full min-w-0 flex-col items-center justify-between gap-3 px-4 pt-1 pb-4">
             <ModeSwitch mode={snapshot.mode} onChange={handleModeChange} />
 
-            <div className="grid w-full place-items-center overflow-hidden">
+            <div className="grid w-full place-items-center overflow-hidden py-2">
               <CrossfadeSlot
                 frame={modeFade.frames.timer}
                 animate={modeFade.animate}
                 mounted={modeFade.mounted.timer}
                 className="col-start-1 row-start-1"
               >
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col items-center gap-1.5">
                   <DurationInput
                     value={mask}
                     onChange={handleMaskChange}
@@ -408,14 +406,14 @@ export function TimerView({ active }: { active: boolean }) {
 
                   {configuredPresets.length > 0 ? (
                     <div className="flex w-full justify-center gap-1.5">
-                      <div className="flex min-w-0 gap-1.5">
+                      <div className="flex min-w-0 justify-center gap-1.5">
                         {configuredPresets.map(({ index, secs }) => (
                           <button
                             key={index}
                             type="button"
                             onClick={() => applyPreset(secs)}
                             aria-label={`Use preset ${secsToCompact(secs)}`}
-                            className="h-5 min-w-0 rounded px-2 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700/70"
+                            className="h-6 min-w-0 rounded px-2 text-[13px] text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-700/70"
                           >
                             {secsToCompact(secs)}
                           </button>
@@ -431,7 +429,7 @@ export function TimerView({ active }: { active: boolean }) {
                 mounted={modeFade.mounted.stopwatch}
                 className="col-start-1 row-start-1"
               >
-                <div className="mb-[35px] text-center text-4xl font-light tracking-tight text-neutral-900 tabular-nums opacity-60 dark:text-neutral-50">
+                <div className="mb-4 text-center text-4xl font-light tracking-tight text-neutral-900 tabular-nums opacity-60 dark:text-neutral-50">
                   00:00:00
                 </div>
               </CrossfadeSlot>

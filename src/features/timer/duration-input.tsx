@@ -65,7 +65,7 @@ export function DurationInput({
         }
       }}
       className={cn(
-        'h-10 w-36 rounded-md border border-neutral-300 bg-white text-center text-2xl text-neutral-900 tabular-nums caret-transparent dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100',
+        'h-11 w-40 rounded-md border border-neutral-300 bg-white text-center text-3xl text-neutral-900 tabular-nums caret-transparent dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100',
         className,
       )}
     />

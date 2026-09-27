@@ -217,8 +217,7 @@ export function EntryEditor({ entry, creating, active, onClose }: Props) {
           {creating ? null : (
             <Button
               type="button"
-              variant="ghost"
-              className="text-red-600 hover:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/10"
+              variant="destructive"
               onClick={() => showDialog()}
             >
               Delete
