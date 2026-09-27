@@ -3,9 +3,9 @@
 A macOS menu bar timer. Running time is recorded as focused time the user can review in Stats.
 
 **Entry**:
-One contiguous stretch of focused time, bounded by a start and an end. It is either **recorded** from a Start or Resume until Pause, Save of a running Interval, or natural completion, or **created** from Stats as a Manual entry.
+One contiguous stretch of focused time, bounded by a start and an end. A new or corrected Entry belongs to exactly one Calendar day. It is either **recorded** from a Start or Resume until Pause, Save of a running Interval, or natural completion, or **created** from Stats as a Manual entry.
 
-Accidental recorded taps of 10 seconds or less are not recorded. A Manual entry is a draft until Save; the 10-second skip does not apply to create or to later corrections. After an Entry exists, start and end can be corrected (any duration is allowed as long as end is after start); type cannot. An Entry can be deleted. Resuming always begins a new Entry.
+Accidental recorded taps of 10 seconds or less are not recorded. A Manual entry is a draft until Save; the 10-second skip does not apply to create or to later corrections. After an Entry exists, start and end can be corrected (any duration is allowed as long as end is after start); a correction that would cross local midnight is a Midnight split — the existing Entry becomes the earliest piece, later pieces are new, Type is copied onto every piece. Type cannot be changed otherwise. An Entry can be deleted. Resuming always begins a new Entry.
 
 _Avoid: session, log. Do not treat the 10-second skip as an invariant of a persisted Entry._
 
@@ -15,7 +15,7 @@ The engine's in-flight stretch of running time, from the most recent Start or Re
 _Avoid: using "interval" and "entry" interchangeably. An Interval is ephemeral; an Entry is persisted._
 
 **Active interval**:
-The currently running Interval, if any (`status === running`). Its elapsed time is `intervalElapsedSecs` from the snapshot. Stats can incorporate the active interval into totals and the entries list as a temporary, non-persisted "running" entry. When the Interval ends (pause, save, completion, discard, or midnight split) the active interval vanishes and may be replaced by a recorded Entry.
+The currently running Interval, if any (`status === running`). Its elapsed time is `intervalElapsedSecs` from the snapshot. Stats can incorporate the active interval into totals and the entries list as a temporary, non-persisted "running" entry. When the Interval ends (pause, save, completion, or discard) the active interval vanishes and may be replaced by a recorded Entry. A Midnight split records the earlier piece and the active interval continues from that midnight.
 
 _Avoid: treating a paused engine as having an active interval — pause finalizes the Interval._
 
@@ -40,9 +40,11 @@ An Entry created from Stats rather than from a finished interval. Not persisted 
 The sum of Entry durations, regardless of type (Timer, Stopwatch, or Manual).
 
 **Calendar day**:
-The local-timezone midnight-to-midnight date an Entry belongs to, taken from its start time. Dashboard totals and the Entries list both use this. A running Interval that crosses midnight is split: the portion up to midnight is recorded as an Entry for that day, and a new Interval begins at midnight for the new day.
+The local-timezone midnight-to-midnight date an Entry belongs to, taken from its start time. A new or corrected Entry starts on that day; its end falls on that day or on the next local midnight. Dashboard totals and the Entries list both use this.
 
-_Avoid: grouping by end time._
+_Avoid: grouping by end time. Do not assume every persisted Entry already obeys the same-day bound. Do not require the end to fall on the start's date._
 
 **Midnight split**:
-When a running Interval spans local midnight, the engine records the pre-midnight portion as an Entry (ended at 23:59:59) and immediately starts a new Interval (started at 00:00:00) so that no single Entry ever straddles two calendar days. The split is transparent to the user — the timer/stopwatch keeps running without interruption.
+Cutting a stretch of focused time at each local midnight so every resulting Entry belongs to one Calendar day. The earlier piece ends at the next local 00:00:00; the next piece starts at that same instant. For a running Interval, the engine records the earlier Entry and continues the Interval from that midnight; countdown remaining and stopwatch elapsed are unchanged. For Save in the Entry editor, one start/end range becomes one Entry per Calendar day, silently: the existing Entry becomes the earliest piece, later pieces are new. Pieces are independent Entries. Entries persisted before this rule may still straddle until a later start/end correction; opening one without changing times does not split it. An Entry already ended at 23:59:59 stays that way until a later start/end correction; opening it without changing times does not move the end to the next midnight.
+
+_Avoid: treating a midnight-crossing range as one Entry. Do not end the earlier piece at 23:59:59._

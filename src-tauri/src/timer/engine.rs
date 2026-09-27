@@ -376,9 +376,10 @@ impl TimerEngine {
     }
 
     /// When a running interval's start and `now` fall on different local
-    /// dates, close each finished day at 23:59:59 and retarget the in-flight
-    /// interval to 00:00:00. The engine stays `Running`. Countdown remaining
-    /// and total stopwatch elapsed are unchanged.
+    /// dates, close each finished day at the next local 00:00:00 and retarget
+    /// the in-flight interval to that same instant. The engine stays
+    /// `Running`. Countdown remaining and total stopwatch elapsed are
+    /// unchanged.
     ///
     /// Portions of 10 seconds or less are still returned; withholding them
     /// is `entries::entry_from_interval`'s job. Call this before `tick` so a
@@ -408,17 +409,14 @@ impl TimerEngine {
             let Some(next_midnight) = at_local(next_date, 0, 0, 0) else {
                 break;
             };
-            let Some(end_of_day) = at_local(segment_date, 23, 59, 59) else {
-                break;
-            };
-            if end_of_day > horizon {
+            if next_midnight > horizon {
                 break;
             }
-            if end_of_day > segment_start {
+            if next_midnight > segment_start {
                 finished.push(FinishedInterval {
                     mode: self.mode,
                     started_at: segment_start,
-                    ended_at: end_of_day,
+                    ended_at: next_midnight,
                 });
             }
             segment_start = next_midnight;
@@ -942,7 +940,6 @@ mod tests {
         let mut engine = TimerEngine::new(4 * 60 * 60);
         let start = local_dt(2026, 6, 15, 23, 0, 0);
         let after = local_dt(2026, 6, 16, 0, 30, 0);
-        let end_of_day = local_dt(2026, 6, 15, 23, 59, 59);
         let midnight = local_dt(2026, 6, 16, 0, 0, 0);
         engine.start(start);
 
@@ -951,7 +948,7 @@ mod tests {
         assert_eq!(finished.len(), 1);
         assert_eq!(finished[0].mode, TimerMode::Timer);
         assert_eq!(finished[0].started_at, start);
-        assert_eq!(finished[0].ended_at, end_of_day);
+        assert_eq!(finished[0].ended_at, midnight);
 
         assert_eq!(engine.status(), TimerStatus::Running);
         assert_eq!(engine.remaining_secs(after), remaining_before);
@@ -968,7 +965,6 @@ mod tests {
         engine.set_mode(TimerMode::Stopwatch);
         let start = local_dt(2026, 6, 15, 23, 0, 0);
         let after = local_dt(2026, 6, 16, 0, 30, 0);
-        let end_of_day = local_dt(2026, 6, 15, 23, 59, 59);
         let midnight = local_dt(2026, 6, 16, 0, 0, 0);
         engine.start(start);
 
@@ -977,7 +973,7 @@ mod tests {
         assert_eq!(finished.len(), 1);
         assert_eq!(finished[0].mode, TimerMode::Stopwatch);
         assert_eq!(finished[0].started_at, start);
-        assert_eq!(finished[0].ended_at, end_of_day);
+        assert_eq!(finished[0].ended_at, midnight);
 
         assert_eq!(engine.status(), TimerStatus::Running);
         assert_eq!(engine.elapsed_secs(after), elapsed_before);
@@ -1011,7 +1007,7 @@ mod tests {
         let finished = engine.split_crossed_midnight(after);
         assert_eq!(finished.len(), 1);
         assert_eq!(finished[0].started_at, resume_at);
-        assert_eq!(finished[0].ended_at, local_dt(2026, 6, 15, 23, 59, 59));
+        assert_eq!(finished[0].ended_at, local_dt(2026, 6, 16, 0, 0, 0));
         assert_eq!(engine.status(), TimerStatus::Running);
         assert_eq!(engine.elapsed_secs(after), elapsed_before);
         assert_eq!(elapsed_before, 70 * 60);
@@ -1059,7 +1055,6 @@ mod tests {
         let mut engine = TimerEngine::new(8 * 60 * 60);
         let start = local_dt(2026, 6, 15, 22, 0, 0);
         let after = local_dt(2026, 6, 16, 2, 30, 0);
-        let end_of_day = local_dt(2026, 6, 15, 23, 59, 59);
         let midnight = local_dt(2026, 6, 16, 0, 0, 0);
         engine.start(start);
 
@@ -1067,7 +1062,7 @@ mod tests {
         let finished = engine.split_crossed_midnight(after);
         assert_eq!(finished.len(), 1);
         assert_eq!(finished[0].started_at, start);
-        assert_eq!(finished[0].ended_at, end_of_day);
+        assert_eq!(finished[0].ended_at, midnight);
         assert!(crate::entries::entry_from_interval(finished[0]).is_some());
 
         assert_eq!(engine.status(), TimerStatus::Running);
@@ -1092,9 +1087,9 @@ mod tests {
         let finished = engine.split_crossed_midnight(after);
         assert_eq!(finished.len(), 2);
         assert_eq!(finished[0].started_at, start);
-        assert_eq!(finished[0].ended_at, local_dt(2026, 6, 15, 23, 59, 59));
+        assert_eq!(finished[0].ended_at, local_dt(2026, 6, 16, 0, 0, 0));
         assert_eq!(finished[1].started_at, local_dt(2026, 6, 16, 0, 0, 0));
-        assert_eq!(finished[1].ended_at, local_dt(2026, 6, 16, 23, 59, 59));
+        assert_eq!(finished[1].ended_at, local_dt(2026, 6, 17, 0, 0, 0));
         assert_eq!(engine.status(), TimerStatus::Running);
         assert_eq!(engine.elapsed_secs(after), elapsed_before);
         assert_eq!(engine.current_interval_elapsed_secs(after), 60 * 60);
@@ -1130,9 +1125,48 @@ mod tests {
         let finished = engine.split_crossed_midnight(now);
         let completed = engine.tick(now).unwrap();
         assert_eq!(finished.len(), 1);
-        assert_eq!(finished[0].ended_at, local_dt(2026, 6, 15, 23, 59, 59));
+        assert_eq!(finished[0].ended_at, local_dt(2026, 6, 16, 0, 0, 0));
         assert_eq!(completed.started_at, local_dt(2026, 6, 16, 0, 0, 0));
         assert_eq!(completed.ended_at, deadline);
+        assert_eq!(engine.status(), TimerStatus::Completed);
+    }
+
+    #[test]
+    fn pre_midnight_piece_of_eleven_seconds_is_recorded() {
+        let mut engine = TimerEngine::new(60 * 60);
+        let start = local_dt(2026, 6, 15, 23, 59, 49);
+        let midnight = local_dt(2026, 6, 16, 0, 0, 0);
+        let after = local_dt(2026, 6, 16, 0, 0, 5);
+        engine.start(start);
+
+        let finished = engine.split_crossed_midnight(after);
+        assert_eq!(finished.len(), 1);
+        assert_eq!(finished[0].started_at, start);
+        assert_eq!(finished[0].ended_at, midnight);
+        let entry = crate::entries::entry_from_interval(finished[0]).unwrap();
+        assert_eq!(entry.duration_secs, 11);
+        assert_eq!(engine.status(), TimerStatus::Running);
+        assert_eq!(engine.current_interval_elapsed_secs(after), 5);
+    }
+
+    #[test]
+    fn timer_that_completes_at_midnight_records_through_that_midnight() {
+        let mut engine = TimerEngine::new(60 * 60);
+        let start = local_dt(2026, 6, 15, 23, 0, 0);
+        let midnight = local_dt(2026, 6, 16, 0, 0, 0);
+        engine.start(start);
+
+        let finished = engine.split_crossed_midnight(midnight);
+        assert_eq!(finished.len(), 1);
+        assert_eq!(finished[0].started_at, start);
+        assert_eq!(finished[0].ended_at, midnight);
+        let entry = crate::entries::entry_from_interval(finished[0]).unwrap();
+        assert_eq!(entry.duration_secs, 3600);
+
+        let completed = engine.tick(midnight).unwrap();
+        assert_eq!(completed.started_at, midnight);
+        assert_eq!(completed.ended_at, midnight);
+        assert!(crate::entries::entry_from_interval(completed).is_none());
         assert_eq!(engine.status(), TimerStatus::Completed);
     }
 }

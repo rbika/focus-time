@@ -108,26 +108,24 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|window, event| {
-            match event {
-                tauri::WindowEvent::CloseRequested { api, .. } => {
-                    api.prevent_close();
-                    if window.label() == "main" {
-                        tray::hide_main_window(window.app_handle());
-                    } else {
-                        let _ = window.hide();
-                    }
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+                if window.label() == "main" {
+                    tray::hide_main_window(window.app_handle());
+                } else {
+                    let _ = window.hide();
                 }
-                tauri::WindowEvent::Focused(false)
-                    if window.label() == "main" && !window::always_on_top_enabled() =>
-                {
-                    let app = window.app_handle();
-                    if !tray::any_sibling_window_visible(app) {
-                        tray::hide_main_window(app);
-                    }
-                }
-                _ => {}
             }
+            tauri::WindowEvent::Focused(false)
+                if window.label() == "main" && !window::always_on_top_enabled() =>
+            {
+                let app = window.app_handle();
+                if !tray::any_sibling_window_visible(app) {
+                    tray::hide_main_window(app);
+                }
+            }
+            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("error while running Focus Timer");

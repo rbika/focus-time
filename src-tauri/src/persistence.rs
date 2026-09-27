@@ -201,12 +201,9 @@ impl Persistence {
                 .ok()
                 .map(|d| d.as_secs())
         });
-        let started_at_unix = engine.started_at().and_then(|started| {
-            started
-                .duration_since(UNIX_EPOCH)
-                .ok()
-                .map(|d| d.as_secs())
-        });
+        let started_at_unix = engine
+            .started_at()
+            .and_then(|started| started.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs()));
 
         let state = PersistedState {
             settings: settings.clone(),

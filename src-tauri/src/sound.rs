@@ -62,11 +62,9 @@ pub fn play_named_sound(app: &AppHandle, name: &str) {
     use objc2_foundation::NSString;
 
     let path_ns = NSString::from_str(&path.to_string_lossy());
-    if let Some(sound) = NSSound::initWithContentsOfFile_byReference(
-        NSSound::alloc(),
-        &path_ns,
-        false,
-    ) {
+    if let Some(sound) =
+        NSSound::initWithContentsOfFile_byReference(NSSound::alloc(), &path_ns, false)
+    {
         let _ = sound.play();
     }
 }

@@ -10,11 +10,15 @@ use tauri::{
 
 use crate::app_state::AppState;
 use crate::persistence::WindowPosition;
-use crate::timer::{TimerSnapshot, TimerMode, TimerStatus};
+use crate::timer::{TimerMode, TimerSnapshot, TimerStatus};
 
 const TRAY_ID: &str = "main";
-const SIBLING_WINDOW_LABELS: &[&str] =
-    &["settings", "up-to-date", "update-available", "update-progress"];
+const SIBLING_WINDOW_LABELS: &[&str] = &[
+    "settings",
+    "up-to-date",
+    "update-available",
+    "update-progress",
+];
 const TRAY_ICON_STOPWATCH_BYTES: &[u8] = include_bytes!("../icons/tray-stopwatch.png");
 const TRAY_ICON_TIMER_BYTES: &[u8] = include_bytes!("../icons/tray-hourglass.png");
 const TRAY_INACTIVE_OPACITY: f64 = 0.4;
@@ -322,14 +326,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 
     Menu::with_items(
         app,
-        &[
-            &pause,
-            &sep,
-            &icon_only_item,
-            &settings,
-            &sep,
-            &quit,
-        ],
+        &[&pause, &sep, &icon_only_item, &settings, &sep, &quit],
     )
 }
 
@@ -457,9 +454,7 @@ pub fn hide_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         was_visible = window.is_visible().unwrap_or(false);
         if was_visible {
-            *LAST_MAIN_WINDOW_HIDE
-                .lock()
-                .expect("main window hide lock") = Some(Instant::now());
+            *LAST_MAIN_WINDOW_HIDE.lock().expect("main window hide lock") = Some(Instant::now());
         }
         let _ = window.hide();
     }

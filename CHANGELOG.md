@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Midnight split logic from a running timer and from saving an entry.
+
+## v1.12.1
+
 ### Improved
 
 - General UI and UX improvements across the app.
 
-## v1.12.1
+## v1.12.0
 
 ### New
 

@@ -143,7 +143,10 @@ fn animate_main_window_resize(window: &tauri::WebviewWindow, width: f64, height:
 
     let current = ns_window.frame();
     let new_frame = NSRect::new(
-        NSPoint::new(current.origin.x, current.origin.y + current.size.height - height),
+        NSPoint::new(
+            current.origin.x,
+            current.origin.y + current.size.height - height,
+        ),
         NSSize::new(width, height),
     );
 
