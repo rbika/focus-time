@@ -1,0 +1,70 @@
+pre-commit:
+  jobs:
+    - name: format
+      group:
+        parallel: true
+        jobs:
+          - name: prettier
+            glob:
+              - '*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'
+              - '*.json'
+              - '*.css'
+              - '*.md'
+            exclude:
+              - package-lock.json
+              - src-tauri/**
+              - .agents/**
+            run: npx prettier --write {staged_files}
+            stage_fixed: true
+
+          - name: rustfmt
+            glob: '*.rs'
+            run: cargo fmt --manifest-path src-tauri/Cargo.toml -- {staged_files}
+            stage_fixed: true
+
+    - name: check
+      group:
+        parallel: true
+        jobs:
+          - name: eslint
+            glob:
+              - '*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'
+              - '*.json'
+              - '*.jsonc'
+              - '*.md'
+            exclude:
+              - package-lock.json
+              - src-tauri/**
+              - .agents/**
+              - .cursor/**
+              - docs/**
+              - AGENTS.md
+            run: npx eslint {staged_files}
+
+          - name: typecheck
+            glob:
+              - '*.{ts,tsx}'
+              - tsconfig.json
+            exclude:
+              - vite.config.ts
+            run: npm run typecheck
+
+          - name: test-ts
+            glob: '*.{ts,tsx}'
+            exclude:
+              - vite.config.ts
+            run: npm test
+
+          - name: clippy
+            glob:
+              - '*.rs'
+              - src-tauri/Cargo.toml
+              - src-tauri/Cargo.lock
+            run: npm run lint:rust
+
+          - name: test-rust
+            glob:
+              - '*.rs'
+              - src-tauri/Cargo.toml
+              - src-tauri/Cargo.lock
+            run: npm run test:rust
