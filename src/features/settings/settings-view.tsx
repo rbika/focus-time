@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { WindowTitleBar } from '@/components/window-title-bar'
 import { PresetDurationInput } from '@/features/settings/preset-duration-input'
 import { ShortcutsSection } from '@/features/settings/shortcuts-section'
+import { StatisticsSection } from '@/features/settings/statistics-section'
 import {
   api,
   NO_COMPLETION_SOUND,
@@ -202,6 +203,8 @@ export function SettingsView() {
               </SettingsGroupItem>
             </SettingsGroupContent>
           </SettingsGroup>
+
+          <StatisticsSection />
 
           <SettingsGroup>
             <SettingsGroupTitle>Updates</SettingsGroupTitle>

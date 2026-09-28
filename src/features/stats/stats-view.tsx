@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { SquarePenIcon } from 'lucide-react'
 
@@ -13,7 +13,7 @@ import { DashboardTab } from '@/features/stats/dashboard-tab'
 import { EntriesTab } from '@/features/stats/entries-tab'
 import { EntryEditor } from '@/features/stats/entry-editor'
 import { useEditorTransition } from '@/features/stats/use-editor-transition'
-import type { Entry } from '@/lib/tauri'
+import { api, onEntriesChanged, type Entry } from '@/lib/tauri'
 
 const MANUAL_DRAFT_DURATION_SECS = 60
 const PANEL_CLASS = 'absolute inset-0 flex min-h-0 flex-col px-4 pt-1 pb-4'
@@ -67,6 +67,31 @@ export function StatsView({ active }: { active: boolean }) {
     if (destination === 'list') return
     hide(dismissEditor)
   }, [destination, dismissEditor, hide])
+
+  const creatingRef = useRef(creating)
+  creatingRef.current = creating
+  const editingRef = useRef(editing)
+  editingRef.current = editing
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    void onEntriesChanged(() => {
+      if (creatingRef.current) return
+      const current = editingRef.current
+      if (!current) return
+      void api.getEntries().then((entries) => {
+        if (creatingRef.current) return
+        if (editingRef.current?.id !== current.id) return
+        if (entries.some((entry) => entry.id === current.id)) return
+        closeEditor()
+      })
+    }).then((fn) => {
+      unlisten = fn
+    })
+    return () => {
+      unlisten?.()
+    }
+  }, [closeEditor])
 
   useEffect(() => {
     if (!active) return

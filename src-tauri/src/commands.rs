@@ -95,6 +95,17 @@ pub fn delete_entry(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn reset_statistics(app: AppHandle) -> Result<(), String> {
+    app.state::<AppState>()
+        .entries
+        .lock()
+        .expect("entries lock")
+        .delete_all()?;
+    let _ = app.emit("entries-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_settings(app: AppHandle) -> Settings {
     app.state::<AppState>()
         .settings

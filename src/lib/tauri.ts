@@ -71,6 +71,7 @@ export const api = {
   updateEntry: (id: string, startedAtUnix: number, endedAtUnix: number) =>
     invoke<Entry>('update_entry', { id, startedAtUnix, endedAtUnix }),
   deleteEntry: (id: string) => invoke<void>('delete_entry', { id }),
+  resetStatistics: () => invoke<void>('reset_statistics'),
   getSettings: () => invoke<Settings>('get_settings'),
   updateSettings: (settings: Settings) =>
     invoke<Settings>('update_settings', { settings }),

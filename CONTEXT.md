@@ -5,7 +5,7 @@ A macOS menu bar timer. Running time is recorded as focused time the user can re
 **Entry**:
 One contiguous stretch of focused time, bounded by a start and an end. A new or corrected Entry belongs to exactly one Calendar day. It is either **recorded** from a Start or Resume until Pause, Save of a running Interval, or natural completion, or **created** from Stats as a Manual entry.
 
-Accidental recorded taps of 10 seconds or less are not recorded. A Manual entry is a draft until Save; the 10-second skip does not apply to create or to later corrections. After an Entry exists, start and end can be corrected (any duration is allowed as long as end is after start); a correction that would cross local midnight is a Midnight split — the existing Entry becomes the earliest piece, later pieces are new, Type is copied onto every piece. Type cannot be changed otherwise. An Entry can be deleted. Resuming always begins a new Entry.
+Accidental recorded taps of 10 seconds or less are not recorded. A Manual entry is a draft until Save; the 10-second skip does not apply to create or to later corrections. After an Entry exists, start and end can be corrected (any duration is allowed as long as end is after start); a correction that would cross local midnight is a Midnight split — the existing Entry becomes the earliest piece, later pieces are new, Type is copied onto every piece. Type cannot be changed otherwise. An Entry can be deleted. All Entries can be deleted at once from Statistics. Resuming always begins a new Entry.
 
 _Avoid: session, log. Do not treat the 10-second skip as an invariant of a persisted Entry._
 
@@ -38,6 +38,18 @@ An Entry created from Stats rather than from a finished interval. Not persisted 
 
 **Focused time**:
 The sum of Entry durations, regardless of type (Timer, Stopwatch, or Manual).
+
+**Stats**:
+The window where focused time is reviewed: Dashboard totals and the Entries list.
+_Avoid: Statistics for this window._
+
+**Statistics**:
+The General Settings group whose action is Reset statistics.
+_Avoid: using Statistics as the name of the Stats window._
+
+**Reset statistics**:
+Deleting every persisted Entry after confirmation. An active Interval is left running. Settings, presets, shortcuts, and the engine are left alone. The action stays available even when there are no Entries.
+_Avoid: timer Reset (engine back to Idle). Do not treat this as Discard._
 
 **Calendar day**:
 The local-timezone midnight-to-midnight date an Entry belongs to, taken from its start time. A new or corrected Entry starts on that day; its end falls on that day or on the next local midnight. Dashboard totals and the Entries list both use this.

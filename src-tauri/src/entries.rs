@@ -297,6 +297,10 @@ impl EntriesStore {
         self.write_all(&entries)
     }
 
+    pub fn delete_all(&self) -> Result<(), String> {
+        self.write_all(&[])
+    }
+
     fn write_all(&self, entries: &[Entry]) -> Result<(), String> {
         let json = serde_json::to_vec_pretty(entries).map_err(|e| e.to_string())?;
         crate::atomic_file::write_json(&self.path, &json)
@@ -690,6 +694,46 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let store = EntriesStore::new(dir);
         assert!(store.delete("nope").is_err());
+    }
+
+    #[test]
+    fn delete_all_removes_every_entry() {
+        let dir = temp_dir("delete-all");
+        fs::create_dir_all(&dir).unwrap();
+        let store = EntriesStore::new(dir.clone());
+        store
+            .append(Entry {
+                id: "first".into(),
+                mode: EntryType::Timer,
+                started_at_unix: 100,
+                ended_at_unix: 200,
+                duration_secs: 100,
+            })
+            .unwrap();
+        store
+            .append(Entry {
+                id: "second".into(),
+                mode: EntryType::Manual,
+                started_at_unix: 300,
+                ended_at_unix: 400,
+                duration_secs: 100,
+            })
+            .unwrap();
+
+        store.delete_all().unwrap();
+        assert_eq!(store.load_all(), Vec::new());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn delete_all_succeeds_when_there_are_no_entries() {
+        let dir = temp_dir("delete-all-empty");
+        fs::create_dir_all(&dir).unwrap();
+        let store = EntriesStore::new(dir.clone());
+
+        store.delete_all().unwrap();
+        assert_eq!(store.load_all(), Vec::new());
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

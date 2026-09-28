@@ -44,6 +44,7 @@ pub fn run() {
             commands::create_entry,
             commands::update_entry,
             commands::delete_entry,
+            commands::reset_statistics,
             commands::get_settings,
             commands::update_settings,
             commands::set_mode,
