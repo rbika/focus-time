@@ -1,0 +1,5 @@
+interface:
+  display_name: "Update Changelog"
+  short_description: "Fill ## Unreleased from commits since the last tag"
+policy:
+  allow_implicit_invocation: false
