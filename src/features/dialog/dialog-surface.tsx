@@ -39,7 +39,7 @@ export function DialogSurface({
           role="alertdialog"
           aria-labelledby={labelledBy}
           aria-describedby={describedBy}
-          className="pointer-events-auto w-full rounded-xl bg-[canvas] p-4 shadow-lg"
+          className="pointer-events-auto w-full max-w-90 rounded-xl bg-[canvas] p-4 shadow-lg"
           style={dialogPanelStyle(frame)}
           onClick={(event) => event.stopPropagation()}
         >

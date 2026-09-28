@@ -26,17 +26,14 @@ export function ResetStatisticsDialog({ frame, onCancel, onConfirm }: Props) {
         id="reset-statistics-desc"
         className="mt-1 text-[13px] text-neutral-500 dark:text-neutral-400"
       >
-        This deletes every entry. It can’t be undone.
+        Are you sure you want to reset your statistics? All your exercise
+        entries will be deleted. This action cannot be undone.
       </p>
       <div className="mt-4 flex items-center justify-between gap-2">
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
-        <Button
-          type="button"
-          className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:text-white dark:hover:bg-red-500"
-          onClick={onConfirm}
-        >
+        <Button type="button" variant="destructive" onClick={onConfirm}>
           Reset
         </Button>
       </div>
