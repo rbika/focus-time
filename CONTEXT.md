@@ -43,6 +43,10 @@ The sum of Entry durations, regardless of type (Timer, Stopwatch, or Manual).
 The window where focused time is reviewed: Dashboard totals and the Entries list.
 _Avoid: Statistics for this window._
 
+**Period**:
+This week, This month, or This year. The Entries list shows only Entries whose Calendar day falls in the selected Period. This year is first the last three calendar months (clipped to 1 Jan), then extended backward three calendar months at a time; earlier years are not listed.
+_Avoid: all, all time, range. Dashboard totals are not a Period — they include Today and have no year._
+
 **Statistics**:
 The General Settings group whose action is Reset statistics.
 _Avoid: using Statistics as the name of the Stats window._
