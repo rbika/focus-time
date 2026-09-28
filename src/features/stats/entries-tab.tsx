@@ -4,6 +4,11 @@ import { ChevronRight, Hourglass, SquarePen, Timer } from 'lucide-react'
 
 import { groupEntriesByDay } from '@/features/stats/group-entries-by-day'
 import { ACTIVE_ENTRY_ID } from '@/features/stats/live-entries'
+import {
+  periodEmptyMessage,
+  visiblePeriodEntries,
+  type Period,
+} from '@/features/stats/period'
 import { useLiveEntries } from '@/features/stats/use-live-entries'
 import type { Entry } from '@/lib/tauri'
 import { secsToSummaryLabel } from '@/utils/time'
@@ -120,19 +125,32 @@ function RunningEntryCard({ entry }: { entry: Entry }) {
 }
 
 export function EntriesTab({
+  period,
+  yearRevealSteps,
+  onShowMore,
   onOpenEntry,
 }: {
+  period: Period
+  yearRevealSteps: number
+  onShowMore: () => void
   onOpenEntry: (entry: Entry) => void
 }) {
   const entries = useLiveEntries()
   const scrollerRef = useRef<HTMLDivElement>(null)
-  const sections = entries ? groupEntriesByDay(entries) : []
+  const view =
+    entries == null
+      ? null
+      : visiblePeriodEntries(entries, period, new Date(), yearRevealSteps)
+  const sections = view ? groupEntriesByDay(view.entries) : []
+  const emptyMessage = view
+    ? periodEmptyMessage(period, view.entries.length, view.canShowMore)
+    : null
   useStickyHeaderFade(scrollerRef, sections.length)
 
-  if (entries != null && entries.length === 0) {
+  if (emptyMessage) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
-        No entries yet
+        {emptyMessage}
       </div>
     )
   }
@@ -165,6 +183,15 @@ export function EntriesTab({
           )}
         </section>
       ))}
+      {view?.canShowMore ? (
+        <button
+          type="button"
+          onClick={onShowMore}
+          className="mx-auto mt-2 mb-4 rounded-sm text-[13px] text-neutral-400 transition-colors hover:text-neutral-600 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-neutral-500 dark:hover:text-neutral-300"
+        >
+          Show more
+        </button>
+      ) : null}
     </div>
   )
 }
