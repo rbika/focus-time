@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { SquarePenIcon } from 'lucide-react'
 
+import { Select } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   CROSSFADE_NUDGE_PX,
@@ -12,6 +13,12 @@ import { useCrossfade } from '@/features/crossfade/use-crossfade'
 import { DashboardTab } from '@/features/stats/dashboard-tab'
 import { EntriesTab } from '@/features/stats/entries-tab'
 import { EntryEditor } from '@/features/stats/entry-editor'
+import {
+  DEFAULT_PERIOD,
+  isPeriod,
+  PERIOD_OPTIONS,
+  type Period,
+} from '@/features/stats/period'
 import { useEditorTransition } from '@/features/stats/use-editor-transition'
 import { api, onEntriesChanged, type Entry } from '@/lib/tauri'
 
@@ -34,11 +41,27 @@ function draftManualEntry(): Entry {
 
 export function StatsView({ active }: { active: boolean }) {
   const [tab, setTab] = useState<StatsTab>('dashboard')
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD)
+  const [yearRevealSteps, setYearRevealSteps] = useState(0)
   const [editing, setEditing] = useState<Entry | null>(null)
   const [creating, setCreating] = useState(false)
   const { frames, animate, destination, show, hide, snapToList } =
     useEditorTransition()
   const tabs = useCrossfade('dashboard', 'entries', tab, CROSSFADE_NUDGE_PX)
+  const wasActiveRef = useRef(active)
+
+  const resetPeriod = useCallback(() => {
+    setPeriod(DEFAULT_PERIOD)
+    setYearRevealSteps(0)
+  }, [])
+
+  const goToTab = useCallback(
+    (next: StatsTab) => {
+      if (next === 'entries') resetPeriod()
+      setTab(next)
+    },
+    [resetPeriod],
+  )
 
   const dismissEditor = useCallback(() => {
     setEditing(null)
@@ -50,6 +73,12 @@ export function StatsView({ active }: { active: boolean }) {
     snapToList()
     dismissEditor()
   }, [active, dismissEditor, snapToList])
+
+  useEffect(() => {
+    const wasActive = wasActiveRef.current
+    wasActiveRef.current = active
+    if (active && !wasActive && tab === 'entries') resetPeriod()
+  }, [active, tab, resetPeriod])
 
   const openEditor = (entry: Entry) => {
     setCreating(false)
@@ -102,11 +131,11 @@ export function StatsView({ active }: { active: boolean }) {
       if (event.key !== '2') return
       event.preventDefault()
       if (destination === 'editor') return
-      setTab((current) => (current === 'dashboard' ? 'entries' : 'dashboard'))
+      goToTab(tab === 'dashboard' ? 'entries' : 'dashboard')
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, destination])
+  }, [active, destination, goToTab, tab])
 
   const editorActive = destination === 'editor' || frames.editor.interactive
 
@@ -121,7 +150,7 @@ export function StatsView({ active }: { active: boolean }) {
           <Tabs
             value={tab}
             onValueChange={(value) => {
-              if (value === 'dashboard' || value === 'entries') setTab(value)
+              if (value === 'dashboard' || value === 'entries') goToTab(value)
             }}
             className="min-h-0 flex-1 flex-col gap-3"
           >
@@ -148,14 +177,38 @@ export function StatsView({ active }: { active: boolean }) {
                 mounted={tabs.mounted.entries}
                 className="absolute inset-0 flex min-h-0 flex-col gap-1"
               >
-                <button
-                  type="button"
-                  onClick={openCreate}
-                  className="flex shrink-0 items-center gap-1 self-start rounded-sm text-[13px] text-neutral-400 transition-colors hover:text-neutral-600 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-neutral-500 dark:hover:text-neutral-300"
-                >
-                  <SquarePenIcon className="h-3.5 w-3.5 shrink-0" /> Add entry
-                </button>
-                <EntriesTab onOpenEntry={openEditor} />
+                <div className="flex shrink-0 items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={openCreate}
+                    className="flex shrink-0 items-center gap-1 rounded-sm text-[13px] text-neutral-400 transition-colors hover:text-neutral-600 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-neutral-500 dark:hover:text-neutral-300"
+                  >
+                    <SquarePenIcon className="h-3.5 w-3.5 shrink-0" /> Add entry
+                  </button>
+                  <Select
+                    aria-label="Period"
+                    value={period}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      if (!isPeriod(value)) return
+                      setPeriod(value)
+                      setYearRevealSteps(0)
+                    }}
+                    className="h-6 w-auto py-0 text-xs"
+                  >
+                    {PERIOD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <EntriesTab
+                  period={period}
+                  yearRevealSteps={yearRevealSteps}
+                  onShowMore={() => setYearRevealSteps((steps) => steps + 1)}
+                  onOpenEntry={openEditor}
+                />
               </CrossfadeSlot>
             </div>
           </Tabs>
