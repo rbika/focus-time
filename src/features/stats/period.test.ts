@@ -63,17 +63,21 @@ describe('visiblePeriodEntries', () => {
     it('first shows the last three calendar months, clipped away from June', () => {
       const july = entry('july', new Date(2026, 6, 1, 0, 0, 0))
       const june = entry('june', new Date(2026, 5, 30, 23, 59, 0))
-      const december = entry('december', new Date(2026, 11, 1, 12, 0, 0))
-      const view = visiblePeriodEntries(
-        [december, july, june],
-        'this-year',
-        now,
-        0,
-      )
+      const view = visiblePeriodEntries([july, june], 'this-year', now, 0)
 
       assert.deepEqual(
         view.entries.map((item) => item.id),
         ['july'],
+      )
+    })
+
+    it('still includes later months this year in the first window', () => {
+      const december = entry('december', new Date(2026, 11, 1, 12, 0, 0))
+      const view = visiblePeriodEntries([december], 'this-year', now, 0)
+
+      assert.deepEqual(
+        view.entries.map((item) => item.id),
+        ['december'],
       )
     })
 

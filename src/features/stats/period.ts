@@ -62,7 +62,7 @@ function periodBounds(
     1,
   )
   const start = unclipped < yearStart ? yearStart : unclipped
-  return { start, end }
+  return { start, end: new Date(now.getFullYear() + 1, 0, 1) }
 }
 
 export function visiblePeriodEntries(
