@@ -47,6 +47,11 @@ _Avoid: Statistics for this window._
 This week (the default), This month, or This year. The Entries list shows only Entries whose Calendar day falls in the selected Period; This year is first the last three calendar months (clipped to 1 Jan), then extended backward three calendar months at a time, and earlier years are not listed.
 _Avoid: all, all time, range. Dashboard totals are not a Period — they include Today and have no year._
 
+**Settings**:
+The separate preferences window, with tabs General, Timer, Notifications, Shortcuts, and About. Closing it hides the window; it stays mounted until quit.
+
+_Avoid: Settings view. Do not treat Settings as a view inside the main window. Statistics is a group on General, not this window. Stats is the focused-time review surface._
+
 **Statistics**:
 The General Settings group whose action is Reset statistics.
 _Avoid: using Statistics as the name of the Stats window._

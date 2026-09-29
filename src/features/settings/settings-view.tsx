@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
 import {
@@ -43,12 +44,13 @@ const SETTINGS_TABS = [
 
 type SettingsTab = (typeof SETTINGS_TABS)[number][0]
 
+const DEFAULT_SETTINGS_TAB = SETTINGS_TABS[0][0]
+
 const tabPanelClassName =
   'flex min-h-0 flex-col gap-5 overflow-y-auto overscroll-none pb-8'
 
 export function SettingsView() {
-  // The settings window stays mounted until quit, so the open tab lasts until then.
-  const [tab, setTab] = useState<SettingsTab>('general')
+  const [tab, setTab] = useState<SettingsTab>(DEFAULT_SETTINGS_TAB)
   const settings = useTimerStore((s) => s.settings)
   const saveSettings = useTimerStore((s) => s.actions.saveSettings)
   const [sounds, setSounds] = useState<string[]>([])
@@ -87,6 +89,20 @@ export function SettingsView() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    void getCurrentWebviewWindow()
+      .onCloseRequested(() => {
+        setTab(DEFAULT_SETTINGS_TAB)
+      })
+      .then((fn) => {
+        unlisten = fn
+      })
+    return () => {
+      unlisten?.()
+    }
   }, [])
 
   if (!settings) {
