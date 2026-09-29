@@ -119,7 +119,7 @@ export function UpdateProgressView() {
   const isError = status.kind === 'error'
 
   const title = isReady
-    ? 'Restart to Update'
+    ? 'Ready to install'
     : isError
       ? 'Update failed'
       : 'Downloading update…'
@@ -137,7 +137,7 @@ export function UpdateProgressView() {
   const percent =
     isDownloading && status.kind === 'downloading'
       ? downloadPercent(status.downloaded, status.total)
-      : holdingFullBar
+      : holdingFullBar || isReady
         ? 100
         : 0
 
@@ -145,25 +145,37 @@ export function UpdateProgressView() {
     <div className="flex h-full flex-col bg-[canvas]">
       <WindowTitleBar title="" />
       {isReady ? (
-        <main className="flex min-h-0 flex-1 flex-col px-5 pb-4">
+        <main className="mt-3 flex min-h-0 flex-1 flex-col px-5 pb-4">
           <div className="flex items-start gap-4">
             <img
               src={appIcon}
               alt=""
-              className="h-16 w-16 shrink-0 rounded-[14px]"
+              className="h-14 w-14 shrink-0 rounded-[14px]"
               aria-hidden
             />
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
               <p className="text-[13px] text-neutral-900 dark:text-neutral-50">
                 {title}
               </p>
-              <p className="text-[12px] leading-4 text-neutral-600 dark:text-neutral-400">
-                {installFailed
-                  ? 'Install failed. Try again.'
-                  : status.kind === 'readyToRestart'
-                    ? `Version ${status.version} is ready to install.`
-                    : null}
-              </p>
+              {installFailed ? (
+                <p className="text-[12px] leading-4 text-neutral-600 dark:text-neutral-400">
+                  Install failed. Try again.
+                </p>
+              ) : (
+                <div
+                  className="h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={percent}
+                  aria-label={title}
+                >
+                  <div
+                    className="h-full rounded-full bg-[#007aff] dark:bg-[#0a84ff]"
+                    style={{ width: `${percent}%` }}
+                  />
+                </div>
+              )}
             </div>
           </div>
           <div className="mt-auto flex justify-end gap-2">
@@ -192,14 +204,14 @@ export function UpdateProgressView() {
           </div>
         </main>
       ) : (
-        <main className="flex min-h-0 flex-1 items-center gap-4 px-5 pb-4">
+        <main className="mt-3 flex min-h-0 flex-1 items-start gap-4 px-5 pb-4">
           <img
             src={appIcon}
             alt=""
-            className="h-16 w-16 shrink-0 rounded-[14px]"
+            className="h-14 w-14 shrink-0 rounded-[14px]"
             aria-hidden
           />
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
             <p className="text-[13px] text-neutral-900 dark:text-neutral-50">
               {title}
             </p>
@@ -243,7 +255,7 @@ export function UpdateProgressView() {
               ) : isDownloading ? (
                 <Button
                   variant="secondary"
-                  className="h-7 shrink-0 rounded-full border border-[#007aff] px-4 py-2 text-sm dark:border-[#0a84ff]"
+                  className="px-5"
                   onClick={() => void api.cancelUpdateDownload()}
                 >
                   Cancel
