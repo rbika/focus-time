@@ -7,14 +7,14 @@ use tauri::{AppHandle, Manager};
 pub const NO_COMPLETION_SOUND: &str = "None";
 
 /// Bundled completion sounds shown in settings.
-pub const COMPLETION_SOUNDS: &[&str] = &["Door Bell", "Hello", "Reward", "Xmas"];
+pub const COMPLETION_SOUNDS: &[&str] = &["Door Bell", "Hello", "Reward", "Microwave"];
 
 fn sound_resource_path(name: &str) -> Option<&'static str> {
     match name {
         "Door Bell" => Some("sounds/door-bell.mp3"),
         "Hello" => Some("sounds/hello.mp3"),
         "Reward" => Some("sounds/reward.mp3"),
-        "Xmas" => Some("sounds/xmas.mp3"),
+        "Microwave" => Some("sounds/microwave.mp3"),
         _ => None,
     }
 }
@@ -77,13 +77,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn bundled_catalog_includes_microwave_last() {
+        assert_eq!(COMPLETION_SOUNDS.last().copied(), Some("Microwave"));
+        assert_eq!(normalize_completion_sound("Microwave"), "Microwave");
+    }
+
+    #[test]
     fn normalize_completion_sound_maps_unknown_to_first_bundled() {
         assert_eq!(normalize_completion_sound("Glass"), "Door Bell");
         assert_eq!(normalize_completion_sound("Bell"), "Door Bell");
         assert_eq!(normalize_completion_sound("Door Bell"), "Door Bell");
         assert_eq!(normalize_completion_sound("Hello"), "Hello");
         assert_eq!(normalize_completion_sound("Reward"), "Reward");
-        assert_eq!(normalize_completion_sound("Xmas"), "Xmas");
+        assert_eq!(normalize_completion_sound("Xmas"), "Door Bell");
         assert_eq!(normalize_completion_sound("None"), NO_COMPLETION_SOUND);
     }
 }

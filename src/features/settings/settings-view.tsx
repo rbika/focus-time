@@ -47,7 +47,7 @@ type SettingsTab = (typeof SETTINGS_TABS)[number][0]
 const DEFAULT_SETTINGS_TAB = SETTINGS_TABS[0][0]
 
 const tabPanelClassName =
-  'flex min-h-0 flex-col gap-5 overflow-y-auto overscroll-none pb-8'
+  'flex min-h-0 flex-col gap-5 overflow-y-auto overscroll-none pb-8 -mx-5 px-5'
 
 export function SettingsView() {
   const [tab, setTab] = useState<SettingsTab>(DEFAULT_SETTINGS_TAB)

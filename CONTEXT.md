@@ -52,6 +52,11 @@ The separate preferences window, with tabs General, Timer, Notifications, Shortc
 
 _Avoid: Settings view. Do not treat Settings as a view inside the main window. Statistics is a group on General, not this window. Stats is the focused-time review surface._
 
+**Completion sound**:
+The sound played when a Timer Interval completes naturally. Chosen in Settings → Notifications. None plays nothing.
+
+_Avoid: alert, notification sound, chime. Not the notification banner._
+
 **Statistics**:
 The General Settings group whose action is Reset statistics.
 _Avoid: using Statistics as the name of the Stats window._
