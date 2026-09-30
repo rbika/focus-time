@@ -1,6 +1,12 @@
 import { useEffect, useRef, type RefObject } from 'react'
 
-import { ChevronRight, Hourglass, SquarePen, Timer } from 'lucide-react'
+import {
+  ChevronRight,
+  CircleIcon,
+  Hourglass,
+  SquarePen,
+  Timer,
+} from 'lucide-react'
 
 import { groupEntriesByDay } from '@/features/stats/group-entries-by-day'
 import { ACTIVE_ENTRY_ID } from '@/features/stats/live-entries'
@@ -58,12 +64,14 @@ function formatUnixTime(unixSecs: number): string {
 function typeIcon(mode: Entry['mode']) {
   if (mode === 'timer') return Hourglass
   if (mode === 'stopwatch') return Timer
+  if (mode === 'pomodoro') return CircleIcon
   return SquarePen
 }
 
 function typeLabel(mode: Entry['mode']) {
   if (mode === 'timer') return 'Timer'
   if (mode === 'stopwatch') return 'Stopwatch'
+  if (mode === 'pomodoro') return 'Pomodoro'
   return 'Manual'
 }
 

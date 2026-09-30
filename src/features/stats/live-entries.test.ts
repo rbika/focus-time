@@ -27,6 +27,7 @@ describe('selectActiveInterval', () => {
         status: 'running',
         mode: 'stopwatch',
         intervalElapsedSecs: 12,
+        isBreak: false,
       }),
       { mode: 'stopwatch', intervalElapsedSecs: 12 },
     )
@@ -39,6 +40,7 @@ describe('selectActiveInterval', () => {
           status,
           mode: 'timer',
           intervalElapsedSecs: 12,
+          isBreak: false,
         }),
         null,
       )
@@ -47,6 +49,7 @@ describe('selectActiveInterval', () => {
           status,
           mode: 'stopwatch',
           intervalElapsedSecs: 13,
+          isBreak: false,
         }),
         null,
       )
@@ -55,6 +58,18 @@ describe('selectActiveInterval', () => {
 
   it('returns null when there is no snapshot', () => {
     assert.equal(selectActiveInterval(null), null)
+  })
+
+  it('stays null while a Break is running', () => {
+    assert.equal(
+      selectActiveInterval({
+        status: 'running',
+        mode: 'pomodoro',
+        intervalElapsedSecs: 40,
+        isBreak: true,
+      }),
+      null,
+    )
   })
 })
 

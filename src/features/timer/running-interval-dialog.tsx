@@ -19,7 +19,11 @@ export function RunningIntervalDialog({
   onSave,
 }: Props) {
   const title =
-    mode === 'stopwatch' ? 'Stopwatch is running' : 'Timer is running'
+    mode === 'stopwatch'
+      ? 'Stopwatch is running'
+      : mode === 'pomodoro'
+        ? 'Session is running'
+        : 'Timer is running'
 
   return (
     <DialogSurface

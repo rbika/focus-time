@@ -15,7 +15,7 @@
         "label": "main",
         "title": "Focus Timer",
         "width": 290,
-        "height": 230,
+        "height": 252,
         "resizable": false,
         "fullscreen": false,
         "visible": false,
@@ -30,7 +30,7 @@
       {
         "label": "settings",
         "title": "Settings",
-        "width": 500,
+        "width": 560,
         "height": 520,
         "resizable": false,
         "fullscreen": false,

@@ -129,7 +129,19 @@ pub fn update_settings(app: AppHandle, settings: Settings) -> Result<Settings, S
             completion_sound: settings.completion_sound,
             auto_check_for_updates: settings.auto_check_for_updates,
             presets: settings.presets,
+            session_length_secs: settings.session_length_secs,
+            short_break_length_secs: settings.short_break_length_secs,
+            long_break_length_secs: settings.long_break_length_secs,
+            sessions_until_long_break: crate::timer::PomodoroConfig::sessions_until_long_break(
+                settings.sessions_until_long_break,
+            ),
+            auto_start_sessions: settings.auto_start_sessions,
+            auto_start_breaks: settings.auto_start_breaks,
         };
+        let config = current.pomodoro_config();
+        drop(current);
+        let mut engine = state.engine.lock().expect("engine lock");
+        engine.apply_idle_pomodoro_config(&config);
     }
 
     // Autostart
@@ -148,6 +160,7 @@ pub fn update_settings(app: AppHandle, settings: Settings) -> Result<Settings, S
     crate::tray::update_tray_title(&app, &snapshot.formatted);
     crate::tray::refresh_tray_menu(&app);
     crate::tray::emit_tick_if_visible(&app, &snapshot);
+    let _ = app.emit("timer-tick", &snapshot);
 
     Ok(saved)
 }
@@ -156,15 +169,26 @@ pub fn update_settings(app: AppHandle, settings: Settings) -> Result<Settings, S
 pub fn set_mode(app: AppHandle, mode: TimerMode) -> Result<TimerSnapshot, String> {
     let state = app.state::<AppState>();
 
+    let config = state
+        .settings
+        .lock()
+        .expect("settings lock")
+        .pomodoro_config();
     {
         let mut engine = state.engine.lock().expect("engine lock");
         if !matches!(engine.status(), TimerStatus::Idle | TimerStatus::Completed) {
             return Err("Timer must be idle to change mode".into());
         }
+        if engine.waiting() {
+            return Err("Cannot change mode while Waiting".into());
+        }
         if engine.mode() == mode {
             return Ok(TimerSnapshot::from_engine(&engine, SystemTime::now()));
         }
         engine.set_mode(mode);
+        if mode == TimerMode::Pomodoro {
+            engine.apply_idle_pomodoro_config(&config);
+        }
     }
 
     state.persist()?;
@@ -243,6 +267,7 @@ pub fn pause(app: AppHandle) -> Result<TimerSnapshot, String> {
         engine.pause(SystemTime::now())
     };
     finalize_interval(&app, finished);
+    maybe_advance_pomodoro(&app);
     after_control(&app)
 }
 
@@ -278,6 +303,7 @@ pub fn toggle_pause(app: AppHandle) -> Result<TimerSnapshot, String> {
         (became_running, finished)
     };
     finalize_interval(&app, finished);
+    maybe_advance_pomodoro(&app);
 
     state.persist()?;
     let snapshot = state.snapshot();
@@ -300,6 +326,7 @@ pub fn reset(app: AppHandle) -> Result<TimerSnapshot, String> {
         engine.reset(SystemTime::now())
     };
     finalize_interval(&app, finished);
+    reset_pomodoro_cycle(&app);
     after_control(&app)
 }
 
@@ -309,6 +336,22 @@ pub fn discard(app: AppHandle) -> Result<TimerSnapshot, String> {
     {
         let mut engine = state.engine.lock().expect("engine lock");
         engine.discard();
+    }
+    reset_pomodoro_cycle(&app);
+    after_control(&app)
+}
+
+#[tauri::command]
+pub fn skip(app: AppHandle) -> Result<TimerSnapshot, String> {
+    let state = app.state::<AppState>();
+    let config = state
+        .settings
+        .lock()
+        .expect("settings lock")
+        .pomodoro_config();
+    {
+        let mut engine = state.engine.lock().expect("engine lock");
+        engine.skip_break(&config);
     }
     after_control(&app)
 }
@@ -433,6 +476,32 @@ pub fn dismiss_update_progress(app: AppHandle) {
 #[tauri::command]
 pub async fn install_and_restart(app: AppHandle) -> Result<(), String> {
     crate::updater::install_and_restart(app).await
+}
+
+fn pomodoro_config(state: &AppState) -> crate::timer::PomodoroConfig {
+    state
+        .settings
+        .lock()
+        .expect("settings lock")
+        .pomodoro_config()
+}
+
+pub fn maybe_advance_pomodoro(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let config = pomodoro_config(&state);
+    let mut engine = state.engine.lock().expect("engine lock");
+    if engine.mode() == TimerMode::Pomodoro && engine.status() == TimerStatus::Completed {
+        engine.advance_after_completion(SystemTime::now(), &config);
+    }
+}
+
+fn reset_pomodoro_cycle(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let config = pomodoro_config(&state);
+    let mut engine = state.engine.lock().expect("engine lock");
+    if engine.mode() == TimerMode::Pomodoro {
+        engine.reset_cycle(&config);
+    }
 }
 
 fn after_control(app: &AppHandle) -> Result<TimerSnapshot, String> {

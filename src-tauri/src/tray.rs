@@ -21,6 +21,7 @@ const SIBLING_WINDOW_LABELS: &[&str] = &[
 ];
 const TRAY_ICON_STOPWATCH_BYTES: &[u8] = include_bytes!("../icons/tray-stopwatch.png");
 const TRAY_ICON_TIMER_BYTES: &[u8] = include_bytes!("../icons/tray-hourglass.png");
+const TRAY_ICON_POMODORO_BYTES: &[u8] = include_bytes!("../icons/tray-tomato.png");
 const TRAY_INACTIVE_OPACITY: f64 = 0.4;
 const TRAY_OPACITY_DURATION: f64 = 0.2;
 
@@ -83,6 +84,7 @@ fn tray_icon_for_mode(mode: TimerMode) -> Image<'static> {
     let bytes = match mode {
         TimerMode::Timer => TRAY_ICON_TIMER_BYTES,
         TimerMode::Stopwatch => TRAY_ICON_STOPWATCH_BYTES,
+        TimerMode::Pomodoro => TRAY_ICON_POMODORO_BYTES,
     };
     Image::from_bytes(bytes).expect("valid tray icon png")
 }
@@ -300,7 +302,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let start_enabled = match status {
         TimerStatus::Idle | TimerStatus::Completed => match mode {
             TimerMode::Stopwatch => true,
-            TimerMode::Timer => duration_secs > 0,
+            TimerMode::Timer | TimerMode::Pomodoro => duration_secs > 0,
         },
         TimerStatus::Running | TimerStatus::Paused => true,
     };

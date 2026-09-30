@@ -16,6 +16,7 @@ use crate::timer::{FinishedInterval, TimerMode};
 pub enum EntryType {
     Timer,
     Stopwatch,
+    Pomodoro,
     Manual,
 }
 
@@ -24,6 +25,7 @@ impl From<TimerMode> for EntryType {
         match mode {
             TimerMode::Timer => EntryType::Timer,
             TimerMode::Stopwatch => EntryType::Stopwatch,
+            TimerMode::Pomodoro => EntryType::Pomodoro,
         }
     }
 }
@@ -61,6 +63,9 @@ pub fn entry_from_interval(interval: FinishedInterval) -> Option<Entry> {
         .as_secs();
     let ended_at_unix = interval.ended_at.duration_since(UNIX_EPOCH).ok()?.as_secs();
     let duration_secs = ended_at_unix.saturating_sub(started_at_unix);
+    if !interval.records_entry {
+        return None;
+    }
     if duration_secs <= MIN_ENTRY_DURATION_SECS {
         return None;
     }
@@ -325,11 +330,8 @@ mod tests {
     #[test]
     fn entry_from_interval_computes_duration_and_a_fresh_id() {
         let started = SystemTime::UNIX_EPOCH + Duration::from_secs(2_000_000_000);
-        let interval = FinishedInterval {
-            mode: TimerMode::Timer,
-            started_at: started,
-            ended_at: started + Duration::from_secs(90),
-        };
+        let interval =
+            FinishedInterval::new(TimerMode::Timer, started, started + Duration::from_secs(90));
         let entry = entry_from_interval(interval).unwrap();
         assert_eq!(entry.mode, EntryType::Timer);
         assert_eq!(entry.started_at_unix, 2_000_000_000);
@@ -341,19 +343,38 @@ mod tests {
     #[test]
     fn entry_from_interval_withholds_at_or_under_ten_seconds() {
         let started = SystemTime::UNIX_EPOCH + Duration::from_secs(2_000_000_000);
-        let ten_seconds = FinishedInterval {
-            mode: TimerMode::Timer,
-            started_at: started,
-            ended_at: started + Duration::from_secs(10),
-        };
+        let ten_seconds =
+            FinishedInterval::new(TimerMode::Timer, started, started + Duration::from_secs(10));
         assert!(entry_from_interval(ten_seconds).is_none());
 
-        let eleven_seconds = FinishedInterval {
-            mode: TimerMode::Timer,
-            started_at: started,
-            ended_at: started + Duration::from_secs(11),
-        };
+        let eleven_seconds =
+            FinishedInterval::new(TimerMode::Timer, started, started + Duration::from_secs(11));
         assert!(entry_from_interval(eleven_seconds).is_some());
+    }
+
+    #[test]
+    fn entry_from_interval_copies_pomodoro_type() {
+        let started = SystemTime::UNIX_EPOCH + Duration::from_secs(2_000_000_000);
+        let interval = FinishedInterval::new(
+            TimerMode::Pomodoro,
+            started,
+            started + Duration::from_secs(25 * 60),
+        );
+        let entry = entry_from_interval(interval).unwrap();
+        assert_eq!(entry.mode, EntryType::Pomodoro);
+        assert_eq!(entry.duration_secs, 25 * 60);
+    }
+
+    #[test]
+    fn entry_from_interval_withholds_a_break() {
+        let started = SystemTime::UNIX_EPOCH + Duration::from_secs(2_000_000_000);
+        let mut interval = FinishedInterval::new(
+            TimerMode::Pomodoro,
+            started,
+            started + Duration::from_secs(5 * 60),
+        );
+        interval.records_entry = false;
+        assert!(entry_from_interval(interval).is_none());
     }
 
     #[test]

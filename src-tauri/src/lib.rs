@@ -55,6 +55,7 @@ pub fn run() {
             commands::toggle_pause,
             commands::reset,
             commands::discard,
+            commands::skip,
             commands::toggle_icon_only,
             commands::show_timer_window,
             commands::hide_timer_window,
@@ -85,7 +86,8 @@ pub fn run() {
                 .unwrap_or_else(|_| PathBuf::from(".").join("focus-timer-data"));
             let persistence = Persistence::new(data_dir.clone());
             let entries = entries::EntriesStore::new(data_dir);
-            let (settings, engine, main_window_position, updater_meta) = persistence.load();
+            let (settings, engine, main_window_position, updater_meta, finished) =
+                persistence.load();
             let state = AppState::new(
                 persistence,
                 entries,
@@ -97,6 +99,7 @@ pub fn run() {
             // Ensure a state file exists immediately for crash recovery.
             let _ = state.persist();
             app.manage(state);
+            commands::finalize_interval(app.handle(), finished);
 
             sync_autostart(app.handle());
             tray::create_tray(app.handle())?;
@@ -200,6 +203,9 @@ fn start_tick_loop(app: tauri::AppHandle) {
                 (splits, finished_interval)
             };
             let completed = finished_interval.is_some();
+            let completed_break = finished_interval
+                .as_ref()
+                .is_some_and(|interval| !interval.records_entry);
             let split = !splits.is_empty();
             if split {
                 // Anchor first, entry second. A crash in between drops the
@@ -213,6 +219,10 @@ fn start_tick_loop(app: tauri::AppHandle) {
                 commands::finalize_interval(&app, Some(interval));
             }
             commands::finalize_interval(&app, finished_interval);
+
+            if completed {
+                commands::maybe_advance_pomodoro(&app);
+            }
 
             let snapshot = state.snapshot();
             detector.note_remaining(snapshot.remaining_secs);
@@ -230,7 +240,11 @@ fn start_tick_loop(app: tauri::AppHandle) {
                 };
                 sound::play_named_sound(&app, &completion_sound);
                 if notifications_enabled {
-                    notification::show_timer_finished(&app);
+                    if completed_break {
+                        notification::show_break_finished(&app);
+                    } else {
+                        notification::show_timer_finished(&app);
+                    }
                 }
                 let _ = state.persist();
                 tray::refresh_tray_menu(&app);

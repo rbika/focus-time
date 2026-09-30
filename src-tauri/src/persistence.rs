@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::sound::{normalize_completion_sound, NO_COMPLETION_SOUND};
-use crate::timer::{TimerEngine, TimerMode, TimerStatus};
+use crate::timer::{
+    FinishedInterval, PomodoroConfig, PomodoroPhase, TimerEngine, TimerMode, TimerStatus,
+};
 
 fn default_true() -> bool {
     true
@@ -16,6 +18,22 @@ fn default_completion_sound() -> String {
 
 fn default_presets() -> [Option<u64>; 3] {
     [Some(30 * 60), Some(60 * 60), Some(2 * 60 * 60)]
+}
+
+fn default_session_length_secs() -> u64 {
+    PomodoroConfig::DEFAULT_SESSION_SECS
+}
+
+fn default_short_break_length_secs() -> u64 {
+    PomodoroConfig::DEFAULT_SHORT_BREAK_SECS
+}
+
+fn default_long_break_length_secs() -> u64 {
+    PomodoroConfig::DEFAULT_LONG_BREAK_SECS
+}
+
+fn default_sessions_until_long_break() -> u32 {
+    PomodoroConfig::DEFAULT_SESSIONS_UNTIL_LONG_BREAK
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -34,6 +52,33 @@ pub struct Settings {
     pub auto_check_for_updates: bool,
     #[serde(default = "default_presets")]
     pub presets: [Option<u64>; 3],
+    #[serde(default = "default_session_length_secs")]
+    pub session_length_secs: u64,
+    #[serde(default = "default_short_break_length_secs")]
+    pub short_break_length_secs: u64,
+    #[serde(default = "default_long_break_length_secs")]
+    pub long_break_length_secs: u64,
+    #[serde(default = "default_sessions_until_long_break")]
+    pub sessions_until_long_break: u32,
+    #[serde(default)]
+    pub auto_start_sessions: bool,
+    #[serde(default)]
+    pub auto_start_breaks: bool,
+}
+
+impl Settings {
+    pub fn pomodoro_config(&self) -> PomodoroConfig {
+        PomodoroConfig {
+            session_secs: self.session_length_secs,
+            short_break_secs: self.short_break_length_secs,
+            long_break_secs: self.long_break_length_secs,
+            sessions_until_long_break: PomodoroConfig::sessions_until_long_break(
+                self.sessions_until_long_break,
+            ),
+            auto_start_sessions: self.auto_start_sessions,
+            auto_start_breaks: self.auto_start_breaks,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -60,6 +105,12 @@ impl Default for Settings {
             completion_sound: default_completion_sound(),
             auto_check_for_updates: true,
             presets: default_presets(),
+            session_length_secs: default_session_length_secs(),
+            short_break_length_secs: default_short_break_length_secs(),
+            long_break_length_secs: default_long_break_length_secs(),
+            sessions_until_long_break: default_sessions_until_long_break(),
+            auto_start_sessions: false,
+            auto_start_breaks: false,
         }
     }
 }
@@ -79,6 +130,16 @@ struct PersistedTimer {
     /// Unix timestamp seconds when running (stopwatch mode).
     #[serde(default)]
     started_at_unix: Option<u64>,
+    #[serde(default)]
+    timer_duration_secs: Option<u64>,
+    #[serde(default)]
+    pomodoro_phase: PomodoroPhase,
+    #[serde(default)]
+    pomodoro_completed_sessions: u32,
+    #[serde(default = "default_sessions_until_long_break")]
+    pomodoro_sessions_until_long_break: u32,
+    #[serde(default)]
+    waiting: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,13 +164,22 @@ impl Persistence {
         }
     }
 
-    pub fn load(&self) -> (Settings, TimerEngine, Option<WindowPosition>, UpdaterMeta) {
+    pub fn load(
+        &self,
+    ) -> (
+        Settings,
+        TimerEngine,
+        Option<WindowPosition>,
+        UpdaterMeta,
+        Option<FinishedInterval>,
+    ) {
         let Ok(bytes) = fs::read(&self.path) else {
             return (
                 Settings::default(),
                 TimerEngine::default(),
                 None,
                 UpdaterMeta::default(),
+                None,
             );
         };
         let Ok(mut state) = serde_json::from_slice::<PersistedState>(&bytes) else {
@@ -118,6 +188,7 @@ impl Persistence {
                 TimerEngine::default(),
                 None,
                 UpdaterMeta::default(),
+                None,
             );
         };
 
@@ -138,6 +209,19 @@ impl Persistence {
         let duration = state.timer.duration_secs;
         let mut engine = TimerEngine::new(duration);
         let now = SystemTime::now();
+        let mut finished = None;
+        engine.restore_timer_duration(state.timer.timer_duration_secs.unwrap_or(
+            if state.timer.mode == TimerMode::Timer {
+                duration
+            } else {
+                0
+            },
+        ));
+        engine.restore_pomodoro_cycle(
+            state.timer.pomodoro_phase,
+            state.timer.pomodoro_completed_sessions,
+            state.timer.pomodoro_sessions_until_long_break,
+        );
 
         match state.timer.mode {
             TimerMode::Timer => match state.timer.status {
@@ -178,6 +262,32 @@ impl Persistence {
                     engine.reset(now);
                 }
             },
+            TimerMode::Pomodoro => {
+                engine.set_mode(TimerMode::Pomodoro);
+                match state.timer.status {
+                    TimerStatus::Running => {
+                        if let Some(deadline_unix) = state.timer.deadline_unix {
+                            let deadline = UNIX_EPOCH + Duration::from_secs(deadline_unix);
+                            finished = engine.restore_countdown_running(deadline, now);
+                            if engine.status() == TimerStatus::Completed {
+                                engine.advance_after_completion(
+                                    now,
+                                    &state.settings.pomodoro_config(),
+                                );
+                            }
+                        } else {
+                            engine.reset(now);
+                        }
+                    }
+                    TimerStatus::Paused => {
+                        engine.restore_paused(state.timer.remaining_at_pause);
+                    }
+                    TimerStatus::Completed | TimerStatus::Idle => {
+                        engine.reset(now);
+                        engine.restore_waiting(state.timer.waiting);
+                    }
+                }
+            }
         }
 
         (
@@ -185,6 +295,7 @@ impl Persistence {
             engine,
             state.main_window_position,
             state.updater,
+            finished,
         )
     }
 
@@ -215,6 +326,11 @@ impl Persistence {
                 deadline_unix,
                 elapsed_at_pause: engine.elapsed_at_pause(),
                 started_at_unix,
+                timer_duration_secs: Some(engine.timer_duration_secs()),
+                pomodoro_phase: engine.pomodoro_phase(),
+                pomodoro_completed_sessions: engine.pomodoro_completed_sessions(),
+                pomodoro_sessions_until_long_break: engine.pomodoro_sessions_until_long_break(),
+                waiting: engine.waiting(),
             },
             main_window_position,
             updater: updater.clone(),
@@ -243,6 +359,12 @@ mod tests {
         assert_eq!(s.completion_sound, "Door Bell");
         assert!(s.auto_check_for_updates);
         assert_eq!(s.presets, [Some(1800), Some(3600), Some(7200)]);
+        assert_eq!(s.session_length_secs, 25 * 60);
+        assert_eq!(s.short_break_length_secs, 5 * 60);
+        assert_eq!(s.long_break_length_secs, 15 * 60);
+        assert_eq!(s.sessions_until_long_break, 4);
+        assert!(!s.auto_start_sessions);
+        assert!(!s.auto_start_breaks);
     }
 
     #[test]
@@ -270,7 +392,8 @@ mod tests {
             .save(&settings, &engine, Some(position), &updater)
             .unwrap();
 
-        let (loaded_settings, loaded_engine, loaded_position, loaded_updater) = persistence.load();
+        let (loaded_settings, loaded_engine, loaded_position, loaded_updater, _) =
+            persistence.load();
         assert_eq!(loaded_settings, settings);
         assert_eq!(loaded_engine.status(), TimerStatus::Paused);
         assert_eq!(loaded_engine.remaining_secs(SystemTime::now()), 100);
@@ -376,7 +499,7 @@ mod tests {
         .unwrap();
 
         let persistence = Persistence::new(dir.clone());
-        let (settings, _, _, _) = persistence.load();
+        let (settings, _, _, _, _) = persistence.load();
         assert_eq!(settings.completion_sound, NO_COMPLETION_SOUND);
 
         let _ = fs::remove_dir_all(dir);
@@ -428,7 +551,7 @@ mod tests {
         .unwrap();
 
         let persistence = Persistence::new(dir.clone());
-        let (_, engine, _, _) = persistence.load();
+        let (_, engine, _, _, _) = persistence.load();
         assert_eq!(engine.mode(), TimerMode::Timer);
         assert_eq!(engine.duration_secs(), 1500);
 
@@ -457,7 +580,7 @@ mod tests {
             .save(&settings, &engine, None, &UpdaterMeta::default())
             .unwrap();
 
-        let (_, loaded_engine, _, _) = persistence.load();
+        let (_, loaded_engine, _, _, _) = persistence.load();
         assert_eq!(loaded_engine.mode(), TimerMode::Stopwatch);
         assert_eq!(loaded_engine.status(), TimerStatus::Paused);
         assert_eq!(loaded_engine.elapsed_at_pause(), 42);
@@ -496,12 +619,116 @@ mod tests {
             .save(&Settings::default(), &engine, None, &UpdaterMeta::default())
             .unwrap();
 
-        let (_, mut loaded_engine, _, _) = persistence.load();
+        let (_, mut loaded_engine, _, _, _) = persistence.load();
         assert_eq!(loaded_engine.mode(), TimerMode::Stopwatch);
         assert_eq!(loaded_engine.status(), TimerStatus::Running);
         assert_eq!(loaded_engine.elapsed_secs(after), 90 * 60);
         assert_eq!(loaded_engine.current_interval_elapsed_secs(after), 30 * 60);
         assert!(loaded_engine.split_crossed_midnight(after).is_empty());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn pomodoro_cycle_roundtrip() {
+        let dir = std::env::temp_dir().join(format!(
+            "focus-timer-pomodoro-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let persistence = Persistence::new(dir.clone());
+
+        let settings = Settings::default();
+        let mut engine = TimerEngine::new(1500);
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.restore_pomodoro_cycle(crate::timer::PomodoroPhase::ShortBreak, 2, 4);
+        engine.apply_idle_pomodoro_config(&settings.pomodoro_config());
+        persistence
+            .save(&settings, &engine, None, &UpdaterMeta::default())
+            .unwrap();
+
+        let (loaded_settings, loaded_engine, _, _, _) = persistence.load();
+        assert_eq!(loaded_settings.session_length_secs, 25 * 60);
+        assert_eq!(loaded_engine.mode(), TimerMode::Pomodoro);
+        assert_eq!(
+            loaded_engine.pomodoro_phase(),
+            crate::timer::PomodoroPhase::ShortBreak
+        );
+        assert_eq!(loaded_engine.pomodoro_completed_sessions(), 2);
+        assert_eq!(loaded_engine.duration_secs(), 5 * 60);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn pomodoro_waiting_roundtrip() {
+        let dir = std::env::temp_dir().join(format!(
+            "focus-timer-waiting-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let persistence = Persistence::new(dir.clone());
+
+        let settings = Settings::default();
+        let mut engine = TimerEngine::new(1500);
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.restore_pomodoro_cycle(crate::timer::PomodoroPhase::ShortBreak, 1, 4);
+        engine.apply_idle_pomodoro_config(&settings.pomodoro_config());
+        engine.restore_waiting(true);
+        persistence
+            .save(&settings, &engine, None, &UpdaterMeta::default())
+            .unwrap();
+
+        let (_, loaded_engine, _, _, finished) = persistence.load();
+        assert!(finished.is_none());
+        assert!(loaded_engine.waiting());
+        assert_eq!(
+            loaded_engine.pomodoro_phase(),
+            crate::timer::PomodoroPhase::ShortBreak
+        );
+        assert_eq!(loaded_engine.pomodoro_completed_sessions(), 1);
+        assert_eq!(loaded_engine.status(), TimerStatus::Idle);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn pomodoro_session_completed_while_quit_records_and_is_waiting() {
+        let dir = std::env::temp_dir().join(format!(
+            "focus-timer-quit-complete-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let persistence = Persistence::new(dir.clone());
+
+        let mut settings = Settings::default();
+        settings.session_length_secs = 25;
+        settings.short_break_length_secs = 5;
+        let mut engine = TimerEngine::new(25);
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&settings.pomodoro_config());
+        let start = UNIX_EPOCH + Duration::from_secs(1_000_000);
+        engine.start(start);
+        persistence
+            .save(&settings, &engine, None, &UpdaterMeta::default())
+            .unwrap();
+
+        let (_, loaded_engine, _, _, finished) = persistence.load();
+        let finished = finished.expect("session completed while quit should finish");
+        assert!(finished.records_entry);
+        assert_eq!(loaded_engine.pomodoro_phase(), PomodoroPhase::ShortBreak);
+        assert_eq!(loaded_engine.status(), TimerStatus::Idle);
+        assert!(loaded_engine.waiting());
+        assert!(crate::entries::entry_from_interval(finished).is_some());
 
         let _ = fs::remove_dir_all(dir);
     }

@@ -37,6 +37,7 @@ const PRESET_LABELS = ['Preset 1', 'Preset 2', 'Preset 3'] as const
 const SETTINGS_TABS = [
   ['general', 'General'],
   ['timer', 'Timer'],
+  ['pomodoro', 'Pomodoro'],
   ['notifications', 'Notifications'],
   ['shortcuts', 'Shortcuts'],
   ['about', 'About'],
@@ -285,6 +286,119 @@ export function SettingsView() {
                   </SettingsGroupItemControl>
                 </SettingsGroupItem>
               ))}
+            </SettingsGroupContent>
+          </SettingsGroup>
+        </TabsContent>
+
+        <TabsContent value="pomodoro" keepMounted className={tabPanelClassName}>
+          <SettingsGroup>
+            <SettingsGroupTitle>Durations</SettingsGroupTitle>
+            <SettingsGroupContent>
+              <SettingsGroupItem>
+                <SettingsGroupItemLabel htmlFor="session-length">
+                  Session
+                </SettingsGroupItemLabel>
+                <SettingsGroupItemControl>
+                  <PresetDurationInput
+                    id="session-length"
+                    label="Session"
+                    valueSecs={settings.sessionLengthSecs}
+                    onCommit={(secs) => update('sessionLengthSecs', secs ?? 0)}
+                  />
+                </SettingsGroupItemControl>
+              </SettingsGroupItem>
+              <SettingsGroupItem>
+                <SettingsGroupItemLabel htmlFor="short-break-length">
+                  Short break
+                </SettingsGroupItemLabel>
+                <SettingsGroupItemControl>
+                  <PresetDurationInput
+                    id="short-break-length"
+                    label="Short break"
+                    valueSecs={settings.shortBreakLengthSecs}
+                    onCommit={(secs) =>
+                      update('shortBreakLengthSecs', secs ?? 0)
+                    }
+                  />
+                </SettingsGroupItemControl>
+              </SettingsGroupItem>
+              <SettingsGroupItem>
+                <SettingsGroupItemLabel htmlFor="long-break-length">
+                  Long break
+                </SettingsGroupItemLabel>
+                <SettingsGroupItemControl>
+                  <PresetDurationInput
+                    id="long-break-length"
+                    label="Long break"
+                    valueSecs={settings.longBreakLengthSecs}
+                    onCommit={(secs) =>
+                      update('longBreakLengthSecs', secs ?? 0)
+                    }
+                  />
+                </SettingsGroupItemControl>
+              </SettingsGroupItem>
+              <SettingsGroupItem>
+                <SettingsGroupItemLabel htmlFor="sessions-until-long-break">
+                  Long break after
+                </SettingsGroupItemLabel>
+                <SettingsGroupItemControl>
+                  <Select
+                    id="sessions-until-long-break"
+                    value={String(settings.sessionsUntilLongBreak)}
+                    onChange={(event) =>
+                      update(
+                        'sessionsUntilLongBreak',
+                        Number(event.target.value),
+                      )
+                    }
+                    aria-label="Long break after"
+                  >
+                    {Array.from({ length: 9 }, (_, index) => index + 2).map(
+                      (count) => (
+                        <option key={count} value={count}>
+                          {count} Sessions
+                        </option>
+                      ),
+                    )}
+                  </Select>
+                </SettingsGroupItemControl>
+              </SettingsGroupItem>
+            </SettingsGroupContent>
+          </SettingsGroup>
+
+          <SettingsGroup>
+            <SettingsGroupTitle>Auto-start</SettingsGroupTitle>
+            <SettingsGroupContent>
+              <SettingsGroupItem>
+                <SettingsGroupItemLabel htmlFor="auto-start-sessions">
+                  Start Sessions automatically
+                </SettingsGroupItemLabel>
+                <SettingsGroupItemControl>
+                  <Switch
+                    id="auto-start-sessions"
+                    checked={settings.autoStartSessions}
+                    onCheckedChange={(value) =>
+                      update('autoStartSessions', value)
+                    }
+                    aria-label="Start Sessions automatically"
+                  />
+                </SettingsGroupItemControl>
+              </SettingsGroupItem>
+              <SettingsGroupItem>
+                <SettingsGroupItemLabel htmlFor="auto-start-breaks">
+                  Start Breaks automatically
+                </SettingsGroupItemLabel>
+                <SettingsGroupItemControl>
+                  <Switch
+                    id="auto-start-breaks"
+                    checked={settings.autoStartBreaks}
+                    onCheckedChange={(value) =>
+                      update('autoStartBreaks', value)
+                    }
+                    aria-label="Start Breaks automatically"
+                  />
+                </SettingsGroupItemControl>
+              </SettingsGroupItem>
             </SettingsGroupContent>
           </SettingsGroup>
         </TabsContent>

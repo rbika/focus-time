@@ -1,21 +1,21 @@
 # Focus Timer
 
-A macOS menu bar timer. Running time is recorded as focused time the user can review in Stats.
+A macOS menu bar timer. Running time is recorded as focused time the user can review in Stats, except Breaks.
 
 **Entry**:
 One contiguous stretch of focused time, bounded by a start and an end. A new or corrected Entry belongs to exactly one Calendar day. It is either **recorded** from a Start or Resume until Pause, Save of a running Interval, or natural completion, or **created** from Stats as a Manual entry.
 
 Accidental recorded taps of 10 seconds or less are not recorded. A Manual entry is a draft until Save; the 10-second skip does not apply to create or to later corrections. After an Entry exists, start and end can be corrected (any duration is allowed as long as end is after start); a correction that would cross local midnight is a Midnight split — the existing Entry becomes the earliest piece, later pieces are new, Type is copied onto every piece. Type cannot be changed otherwise. An Entry can be deleted. All Entries can be deleted at once from Statistics. Resuming always begins a new Entry.
 
-_Avoid: session, log. Do not treat the 10-second skip as an invariant of a persisted Entry._
+_Avoid: calling an Entry a Session. Log. Do not treat the 10-second skip as an invariant of a persisted Entry._
 
 **Interval**:
-The engine's in-flight stretch of running time, from the most recent Start or Resume until the next Pause, Save, Discard, or natural completion. An Interval is not persisted; when it ends it may produce an Entry (subject to the 10-second skip). Only one Interval can exist at a time, and only while the engine status is `running`.
+The engine's in-flight stretch of running time, from the most recent Start or Resume until the next Pause, Save, Discard, Skip, or natural completion. An Interval is not persisted; when it ends it may produce an Entry (subject to the 10-second skip). A Break Interval never produces an Entry. Only one Interval can exist at a time, and only while the engine status is `running`.
 
 _Avoid: using "interval" and "entry" interchangeably. An Interval is ephemeral; an Entry is persisted._
 
 **Active interval**:
-The currently running Interval, if any (`status === running`). Its elapsed time is `intervalElapsedSecs` from the snapshot. Stats can incorporate the active interval into totals and the entries list as a temporary, non-persisted "running" entry. When the Interval ends (pause, save, completion, or discard) the active interval vanishes and may be replaced by a recorded Entry. A Midnight split records the earlier piece and the active interval continues from that midnight.
+The currently running Interval, if any (`status === running`). Its elapsed time is `intervalElapsedSecs` from the snapshot. Stats can incorporate the active interval into totals and the entries list as a temporary, non-persisted "running" entry, except when the Interval is a Break. When the Interval ends (pause, save, completion, discard, or Skip) the active interval vanishes and may be replaced by a recorded Entry. A Midnight split records the earlier piece and the active interval continues from that midnight, except during a Break, which is not recorded.
 
 _Avoid: treating a paused engine as having an active interval — pause finalizes the Interval._
 
@@ -25,9 +25,49 @@ Ending a running Interval without recording an Entry. The engine returns to Idle
 _Avoid: Delete (that removes a persisted Entry). Discard never touches existing Entries._
 
 **Type**:
-Timer, Stopwatch, or Manual. Timer and Stopwatch are copied from the engine when an interval is recorded. Manual is only for entries created from Stats, shown with the square-pen icon.
+Timer, Stopwatch, Pomodoro, or Manual. Timer, Stopwatch, and Pomodoro are copied from the engine when an Interval is recorded. Pomodoro is only recorded from a Session, never a Break, and is shown with the tomato icon. Manual is only for entries created from Stats, shown with the square-pen icon.
 
-_Avoid: treating Manual as an engine mode. The menu bar is still only Timer or Stopwatch._
+_Avoid: treating Manual as an engine mode. The menu bar is Timer, Stopwatch, or Pomodoro._
+
+**Pomodoro**:
+The third engine mode, alongside Timer and Stopwatch. In this mode the engine runs Sessions and Breaks inside a Cycle.
+
+_Avoid: treating Pomodoro as a Timer preset. Do not call a Break's Type Pomodoro — a Break has no Type._
+
+**Session**:
+The work phase of a Cycle: a countdown Interval in Pomodoro mode. Completing or saving one may produce an Entry of Type Pomodoro.
+
+_Avoid: using Session for an Entry, a Timer Interval, or a Break._
+
+**Break**:
+A rest phase of a Cycle — Short break or Long break. A countdown Interval in Pomodoro mode that never produces an Entry and is not focused time. After every completed Session the next Break is a Short break, unless the Cycle has reached the configured number of Sessions, in which case it is a Long break.
+
+_Avoid: treating a Break as focused time. Do not record a Break as an Entry._
+
+**Cycle**:
+The sequence of Sessions toward the next Long break. It returns to Session 1 when the Long break completes or is Skipped, and that Session is Waiting. Cancel also returns to Session 1, but leaves Waiting. Skip of a Short break does not reset the Cycle. The same Cycle is still the Cycle after quit, and after leaving the Pomodoro tab while idle.
+
+_Avoid: treating a Cycle as an Entry or as focused time._
+
+**Waiting**:
+The next phase of a Cycle is selected and has not started. Entered after a Session or Break completes (including while quit), after Skip, and after a Long break returns to Session 1. Cancel leaves it; first picking Pomodoro is not Waiting. Survives quit. A Session that completes while quit still records an Entry subject to the usual rules.
+
+_Avoid: Idle for this. Do not treat Cancel's Session 1 as Waiting. Do not treat a relaunch as Cancel._
+
+**Cancel**:
+The running-view action that resets the Cycle to Session 1 and leaves Waiting. If a Session Interval is in flight and longer than 10 seconds, Save or Discard first. If a Break Interval is in flight, Discard immediately — no dialog. If already Waiting, only the Cycle is reset.
+
+_Avoid: Skip (keeps the Cycle). Timer Reset._
+
+**Skip**:
+Ends a Break without recording an Entry and without resetting the Cycle. Available while a Break Interval is in flight and while Waiting on a Break. The next phase is Waiting — a Short break's following Session, or Session 1 after a Long break. Not available on a Session. Does not auto-start the next Session.
+
+_Avoid: Cancel. Discard as the name of this action. Do not treat Skip as natural completion._
+
+**Auto-start**:
+Settings that start the next Break or the next Session when the current phase completes naturally. Does not apply to Skip. When the matching setting is off, that next phase is Waiting.
+
+_Avoid: treating Skip as a finish that should auto-start._
 
 **Entry editor**:
 The Stats surface where an Entry's start and end are written. Add entry and opening an existing Entry are the same surface.
@@ -37,7 +77,7 @@ _Avoid: add-entry screen, edit screen._
 An Entry created from Stats rather than from a finished interval. Not persisted until Save. The entry editor has no Delete action while creating one.
 
 **Focused time**:
-The sum of Entry durations, regardless of type (Timer, Stopwatch, or Manual).
+The sum of Entry durations, regardless of type (Timer, Stopwatch, Pomodoro, or Manual). Breaks are not Entries and are not included.
 
 **Stats**:
 The window where focused time is reviewed: Dashboard totals and the Entries list.
@@ -48,12 +88,12 @@ This week (the default), This month, or This year. The Entries list shows only E
 _Avoid: all, all time, range. Dashboard totals are not a Period — they include Today and have no year._
 
 **Settings**:
-The separate preferences window, with tabs General, Timer, Notifications, Shortcuts, and About. Closing it hides the window; it stays mounted until quit.
+The separate preferences window, with tabs General, Timer, Pomodoro, Notifications, Shortcuts, and About. Closing it hides the window; it stays mounted until quit.
 
 _Avoid: Settings view. Do not treat Settings as a view inside the main window. Statistics is a group on General, not this window. Stats is the focused-time review surface._
 
 **Completion sound**:
-The sound played when a Timer Interval completes naturally. Chosen in Settings → Notifications. None plays nothing.
+The sound played when a Timer Interval, Session, or Break completes naturally. Chosen in Settings → Notifications. None plays nothing.
 
 _Avoid: alert, notification sound, chime. Not the notification banner._
 
@@ -71,6 +111,6 @@ The local-timezone midnight-to-midnight date an Entry belongs to, taken from its
 _Avoid: grouping by end time. Do not assume every persisted Entry already obeys the same-day bound. Do not require the end to fall on the start's date._
 
 **Midnight split**:
-Cutting a stretch of focused time at each local midnight so every resulting Entry belongs to one Calendar day. The earlier piece ends at the next local 00:00:00; the next piece starts at that same instant. For a running Interval, the engine records the earlier Entry and continues the Interval from that midnight; countdown remaining and stopwatch elapsed are unchanged. For Save in the Entry editor, one start/end range becomes one Entry per Calendar day, silently: the existing Entry becomes the earliest piece, later pieces are new. Pieces are independent Entries. Entries persisted before this rule may still straddle until a later start/end correction; opening one without changing times does not split it. An Entry already ended at 23:59:59 stays that way until a later start/end correction; opening it without changing times does not move the end to the next midnight.
+Cutting a stretch of focused time at each local midnight so every resulting Entry belongs to one Calendar day. The earlier piece ends at the next local 00:00:00; the next piece starts at that same instant. For a running Interval, the engine records the earlier Entry and continues the Interval from that midnight; countdown remaining and stopwatch elapsed are unchanged. A Break that crosses midnight is not recorded; the Break Interval continues. For Save in the Entry editor, one start/end range becomes one Entry per Calendar day, silently: the existing Entry becomes the earliest piece, later pieces are new. Pieces are independent Entries. Entries persisted before this rule may still straddle until a later start/end correction; opening one without changing times does not split it. An Entry already ended at 23:59:59 stays that way until a later start/end correction; opening it without changing times does not move the end to the next midnight.
 
 _Avoid: treating a midnight-crossing range as one Entry. Do not end the earlier piece at 23:59:59._

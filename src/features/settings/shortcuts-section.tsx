@@ -15,7 +15,8 @@ const SHORTCUTS = [
   { label: 'Hide the window', keys: 'Escape' },
   {
     label: 'Show Timer',
-    description: 'Press again to switch between Timer / Stopwatch tabs.',
+    description:
+      'Press again to switch between Timer / Stopwatch / Pomodoro tabs.',
     keys: '⌘1',
   },
   {

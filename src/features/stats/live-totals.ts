@@ -1,6 +1,9 @@
 import type { TimerSnapshot, Totals } from '@/lib/tauri'
 
-type LiveSnapshot = Pick<TimerSnapshot, 'status' | 'intervalElapsedSecs'>
+type LiveSnapshot = Pick<
+  TimerSnapshot,
+  'status' | 'intervalElapsedSecs' | 'isBreak'
+>
 
 /** Elapsed seconds to overlay on persisted totals.
  *
@@ -11,6 +14,7 @@ export function selectLiveIntervalElapsedSecs(
   snapshot: LiveSnapshot | null,
 ): number {
   if (snapshot?.status !== 'running') return 0
+  if (snapshot.isBreak) return 0
   return snapshot.intervalElapsedSecs
 }
 

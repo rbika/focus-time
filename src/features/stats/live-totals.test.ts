@@ -32,6 +32,7 @@ describe('selectLiveIntervalElapsedSecs', () => {
       selectLiveIntervalElapsedSecs({
         status: 'running',
         intervalElapsedSecs: 12,
+        isBreak: false,
       }),
       12,
     )
@@ -40,11 +41,19 @@ describe('selectLiveIntervalElapsedSecs', () => {
   it('stays at 0 across ticks when the engine is not running', () => {
     for (const status of ['idle', 'paused', 'completed'] as const) {
       assert.equal(
-        selectLiveIntervalElapsedSecs({ status, intervalElapsedSecs: 12 }),
+        selectLiveIntervalElapsedSecs({
+          status,
+          intervalElapsedSecs: 12,
+          isBreak: false,
+        }),
         0,
       )
       assert.equal(
-        selectLiveIntervalElapsedSecs({ status, intervalElapsedSecs: 13 }),
+        selectLiveIntervalElapsedSecs({
+          status,
+          intervalElapsedSecs: 13,
+          isBreak: false,
+        }),
         0,
       )
     }
@@ -52,5 +61,16 @@ describe('selectLiveIntervalElapsedSecs', () => {
 
   it('returns 0 when there is no snapshot', () => {
     assert.equal(selectLiveIntervalElapsedSecs(null), 0)
+  })
+
+  it('returns 0 while a Break is running', () => {
+    assert.equal(
+      selectLiveIntervalElapsedSecs({
+        status: 'running',
+        intervalElapsedSecs: 40,
+        isBreak: true,
+      }),
+      0,
+    )
   })
 })

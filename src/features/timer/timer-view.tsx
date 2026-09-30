@@ -1,15 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { BellIcon, Hourglass, Pause, Play, Timer, X } from 'lucide-react'
+import {
+  BellIcon,
+  CircleIcon,
+  Hourglass,
+  Pause,
+  Play,
+  Timer,
+  X,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { CROSSFADE_NUDGE_PX } from '@/features/crossfade/crossfade'
 import { CrossfadeSlot } from '@/features/crossfade/crossfade-slot'
-import { useCrossfade } from '@/features/crossfade/use-crossfade'
+import {
+  useCrossfade,
+  useOrderedCrossfade,
+} from '@/features/crossfade/use-crossfade'
 import { useDialogOverlay } from '@/features/dialog/use-dialog-overlay'
 import { DurationInput } from '@/features/timer/duration-input'
-import { ModeSwitch } from '@/features/timer/mode-switch'
+import { MODES, ModeSwitch } from '@/features/timer/mode-switch'
+import { phaseLabel } from '@/features/timer/pomodoro'
 import { RunningIntervalDialog } from '@/features/timer/running-interval-dialog'
+import { SessionDots } from '@/features/timer/session-dots'
 import { TimerProgress } from '@/features/timer/timer-progress'
 import { api, onMainWindowHidden } from '@/lib/tauri'
 import type { TimerMode } from '@/lib/tauri'
@@ -24,19 +37,21 @@ export function TimerView({ active }: { active: boolean }) {
   const togglePause = useTimerStore((s) => s.actions.togglePause)
   const reset = useTimerStore((s) => s.actions.reset)
   const discard = useTimerStore((s) => s.actions.discard)
+  const skip = useTimerStore((s) => s.actions.skip)
   const setDuration = useTimerStore((s) => s.actions.setDuration)
   const setMode = useTimerStore((s) => s.actions.setMode)
-  const modeFade = useCrossfade(
-    'timer',
-    'stopwatch',
-    snapshot?.mode === 'stopwatch' ? 'stopwatch' : 'timer',
+  const modeFade = useOrderedCrossfade(
+    MODES,
+    snapshot?.mode ?? 'timer',
     CROSSFADE_NUDGE_PX,
     snapshot != null,
   )
   const runFade = useCrossfade(
     'idle',
     'running',
-    snapshot?.status === 'running' || snapshot?.status === 'paused'
+    snapshot?.status === 'running' ||
+      snapshot?.status === 'paused' ||
+      snapshot?.waiting
       ? 'running'
       : 'idle',
     0,
@@ -55,6 +70,8 @@ export function TimerView({ active }: { active: boolean }) {
   const genRef = useRef(0)
   const intendedSecsRef = useRef<number | null>(null)
   const queueRef = useRef(Promise.resolve())
+  // Last Pomodoro readout, so the outgoing panel doesn't jump to the new mode.
+  const pomodoroIdleLabelRef = useRef('')
 
   const runExclusive = useCallback((task: () => Promise<void>) => {
     const run = queueRef.current.then(task, task)
@@ -126,7 +143,7 @@ export function TimerView({ active }: { active: boolean }) {
       debounceRef.current = null
     }
     const current = useTimerStore.getState().snapshot
-    if (current?.mode === 'stopwatch') {
+    if (current?.mode === 'stopwatch' || current?.mode === 'pomodoro') {
       await togglePause()
       return
     }
@@ -174,12 +191,16 @@ export function TimerView({ active }: { active: boolean }) {
 
   const handleCancel = useCallback(() => {
     const current = useTimerStore.getState().snapshot
+    if (current?.isBreak) {
+      void discard()
+      return
+    }
     if (current?.status === 'running' && current.intervalElapsedSecs > 10) {
       showDialog()
       return
     }
     void reset()
-  }, [showDialog, reset])
+  }, [showDialog, reset, discard])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -212,9 +233,9 @@ export function TimerView({ active }: { active: boolean }) {
           return
         }
         const current = useTimerStore.getState().snapshot
-        const isActive =
+        const isInFlight =
           current?.status === 'running' || current?.status === 'paused'
-        if (!isActive) return
+        if (!isInFlight && !current?.waiting) return
         event.preventDefault()
         handleCancel()
         return
@@ -269,7 +290,13 @@ export function TimerView({ active }: { active: boolean }) {
   const isRunning = snapshot.status === 'running'
   const isPaused = snapshot.status === 'paused'
   const isStopwatch = snapshot.mode === 'stopwatch'
-  const canStart = isStopwatch || maskToSecs(mask) > 0
+  const isPomodoro = snapshot.mode === 'pomodoro'
+  if (isPomodoro) pomodoroIdleLabelRef.current = snapshot.formatted
+  const isCountdown = !isStopwatch
+  const onBreak = snapshot.isBreak
+  const canStart =
+    isStopwatch ||
+    (isPomodoro ? snapshot.durationSecs > 0 : maskToSecs(mask) > 0)
   const endsAt = isRunning
     ? new Date(Date.now() + snapshot.remainingSecs * 1000).toLocaleTimeString(
         undefined,
@@ -295,13 +322,25 @@ export function TimerView({ active }: { active: boolean }) {
                 'flex h-7 w-full shrink-0 items-center justify-center gap-1.5 text-sm font-medium text-neutral-900 transition-opacity duration-200 dark:text-neutral-50',
                 isPaused && 'opacity-60',
               )}
-              aria-label={isStopwatch ? 'Stopwatch mode' : 'Timer mode'}
+              aria-label={
+                isPomodoro
+                  ? 'Pomodoro mode'
+                  : isStopwatch
+                    ? 'Stopwatch mode'
+                    : 'Timer mode'
+              }
             >
               {isStopwatch ? (
                 <>
                   <Timer className="h-4 w-4" aria-hidden />
                   Stopwatch
                 </>
+              ) : isPomodoro ? (
+                <div className="flex items-center gap-1.5">
+                  <CircleIcon className="h-3.5 w-3.5" aria-hidden />
+                  {phaseLabel(snapshot.phase)}:{' '}
+                  {secsToCompact(snapshot.durationSecs)}
+                </div>
               ) : (
                 <div className="flex w-full items-center justify-center gap-4 px-5">
                   <div className="flex items-center gap-1.5">
@@ -332,19 +371,27 @@ export function TimerView({ active }: { active: boolean }) {
                 )}
                 aria-live="polite"
               >
-                {isStopwatch ? null : (
+                {isCountdown ? (
                   <div className="mt-2 flex w-44 flex-col items-center gap-1.5">
                     <TimerProgress
                       remainingSecs={snapshot.remainingSecs}
                       durationSecs={snapshot.durationSecs}
                       running={isRunning}
                     />
-                    <span className="flex w-20 items-center justify-center gap-1 text-left">
-                      <BellIcon className="mt-px h-3 w-3" aria-hidden />{' '}
-                      {endsAt}
-                    </span>
+                    <div className="flex w-full items-center justify-center gap-2">
+                      <span className="flex w-20 items-center justify-center gap-1 text-left">
+                        <BellIcon className="mt-px h-3 w-3" aria-hidden />{' '}
+                        {endsAt}
+                      </span>
+                      {isPomodoro ? (
+                        <SessionDots
+                          completed={snapshot.completedSessions}
+                          total={snapshot.sessionsUntilLongBreak}
+                        />
+                      ) : null}
+                    </div>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
 
@@ -357,9 +404,19 @@ export function TimerView({ active }: { active: boolean }) {
               >
                 <X className="h-3.5 w-3.5" aria-hidden />
               </Button>
+              {onBreak ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => void skip()}
+                  aria-label="Skip break"
+                  className="gap-1.5"
+                >
+                  Skip
+                </Button>
+              ) : null}
               <Button
                 onClick={() => void togglePause()}
-                aria-label={isRunning ? 'Pause' : 'Resume'}
+                aria-label={isRunning ? 'Pause' : isPaused ? 'Resume' : 'Start'}
                 className="w-28 gap-1.5"
               >
                 {isRunning ? (
@@ -367,7 +424,7 @@ export function TimerView({ active }: { active: boolean }) {
                 ) : (
                   <Play className="h-3.5 w-3.5" aria-hidden />
                 )}
-                {isRunning ? 'Pause' : 'Resume'}
+                {isRunning ? 'Pause' : isPaused ? 'Resume' : 'Start'}
               </Button>
             </div>
           </div>
@@ -431,6 +488,18 @@ export function TimerView({ active }: { active: boolean }) {
               >
                 <div className="mb-4 text-center text-4xl font-light tracking-tight text-neutral-900 tabular-nums opacity-60 dark:text-neutral-50">
                   00:00:00
+                </div>
+              </CrossfadeSlot>
+              <CrossfadeSlot
+                frame={modeFade.frames.pomodoro}
+                animate={modeFade.animate}
+                mounted={modeFade.mounted.pomodoro}
+                className="col-start-1 row-start-1"
+              >
+                <div className="flex flex-col items-center gap-1.5">
+                  <p className="mb-4 text-center text-4xl font-light tracking-tight text-neutral-900 tabular-nums opacity-60 dark:text-neutral-50">
+                    {pomodoroIdleLabelRef.current}
+                  </p>
                 </div>
               </CrossfadeSlot>
             </div>

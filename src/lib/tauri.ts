@@ -6,7 +6,9 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 export type TimerStatus = 'idle' | 'running' | 'paused' | 'completed'
 
-export type TimerMode = 'timer' | 'stopwatch'
+export type TimerMode = 'timer' | 'stopwatch' | 'pomodoro'
+
+export type PomodoroPhase = 'session' | 'shortBreak' | 'longBreak'
 
 export type EntryType = TimerMode | 'manual'
 
@@ -18,6 +20,11 @@ export interface TimerSnapshot {
   intervalElapsedSecs: number
   durationSecs: number
   formatted: string
+  phase: PomodoroPhase | null
+  completedSessions: number
+  sessionsUntilLongBreak: number
+  isBreak: boolean
+  waiting: boolean
 }
 
 export type Presets = [number | null, number | null, number | null]
@@ -33,6 +40,12 @@ export interface Settings {
   completionSound: string
   autoCheckForUpdates: boolean
   presets: Presets
+  sessionLengthSecs: number
+  shortBreakLengthSecs: number
+  longBreakLengthSecs: number
+  sessionsUntilLongBreak: number
+  autoStartSessions: boolean
+  autoStartBreaks: boolean
 }
 
 /** Sentinel for disabling the completion sound (first option in the select). */
@@ -84,6 +97,7 @@ export const api = {
   togglePause: () => invoke<TimerSnapshot>('toggle_pause'),
   reset: () => invoke<TimerSnapshot>('reset'),
   discard: () => invoke<TimerSnapshot>('discard'),
+  skip: () => invoke<TimerSnapshot>('skip'),
   showTimerWindow: () => invoke<void>('show_timer_window'),
   hideTimerWindow: () => invoke<void>('hide_timer_window'),
   resizeMainWindow: (view: MainView) =>

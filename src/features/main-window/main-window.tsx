@@ -38,13 +38,18 @@ export function MainWindow() {
         const snapshot = useTimerStore.getState().snapshot
         if (
           snapshot == null ||
+          snapshot.waiting ||
           (snapshot.status !== 'idle' && snapshot.status !== 'completed')
         ) {
           return
         }
-        void useTimerStore
-          .getState()
-          .actions.setMode(snapshot.mode === 'timer' ? 'stopwatch' : 'timer')
+        const nextMode =
+          snapshot.mode === 'timer'
+            ? 'stopwatch'
+            : snapshot.mode === 'stopwatch'
+              ? 'pomodoro'
+              : 'timer'
+        void useTimerStore.getState().actions.setMode(nextMode)
         return
       }
       if (event.key === '2') {

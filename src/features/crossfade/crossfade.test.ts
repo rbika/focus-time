@@ -6,6 +6,7 @@ import {
   CROSSFADE_NUDGE_PX,
   crossfadeFrames,
   crossfadeHolding,
+  crossfadeOrderedFrames,
 } from './crossfade.ts'
 
 describe('crossfadeFrames', () => {
@@ -55,5 +56,50 @@ describe('crossfadeHolding', () => {
   it('drops the other panel when nothing changed or motion is reduced', () => {
     assert.equal(crossfadeHolding('dashboard', 'dashboard', false), null)
     assert.equal(crossfadeHolding('timer', 'stopwatch', true), null)
+  })
+})
+
+describe('crossfadeOrderedFrames', () => {
+  const order = ['timer', 'stopwatch', 'pomodoro'] as const
+
+  it('slides left toward a later panel, including a skip', () => {
+    assert.deepEqual(
+      crossfadeOrderedFrames(order, 'pomodoro', CROSSFADE_NUDGE_PX),
+      {
+        timer: { x: -CROSSFADE_NUDGE_PX, opacity: 0, interactive: false },
+        stopwatch: { x: -CROSSFADE_NUDGE_PX, opacity: 0, interactive: false },
+        pomodoro: { x: 0, opacity: 1, interactive: true },
+      },
+    )
+  })
+
+  it('slides right toward an earlier panel, including a skip', () => {
+    assert.deepEqual(
+      crossfadeOrderedFrames(order, 'timer', CROSSFADE_NUDGE_PX),
+      {
+        timer: { x: 0, opacity: 1, interactive: true },
+        stopwatch: { x: CROSSFADE_NUDGE_PX, opacity: 0, interactive: false },
+        pomodoro: { x: CROSSFADE_NUDGE_PX, opacity: 0, interactive: false },
+      },
+    )
+  })
+
+  it('sits neighbors on both sides of a middle panel', () => {
+    assert.deepEqual(
+      crossfadeOrderedFrames(order, 'stopwatch', CROSSFADE_NUDGE_PX),
+      {
+        timer: { x: -CROSSFADE_NUDGE_PX, opacity: 0, interactive: false },
+        stopwatch: { x: 0, opacity: 1, interactive: true },
+        pomodoro: { x: CROSSFADE_NUDGE_PX, opacity: 0, interactive: false },
+      },
+    )
+  })
+
+  it('fades with no nudge when the distance is 0', () => {
+    assert.deepEqual(crossfadeOrderedFrames(order, 'pomodoro', 0), {
+      timer: { x: 0, opacity: 0, interactive: false },
+      stopwatch: { x: 0, opacity: 0, interactive: false },
+      pomodoro: { x: 0, opacity: 1, interactive: true },
+    })
   })
 })

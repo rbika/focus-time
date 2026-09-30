@@ -2,12 +2,21 @@ use chrono::{NaiveDate, TimeZone};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use super::{PomodoroConfig, PomodoroPhase};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum TimerMode {
     #[default]
     Timer,
     Stopwatch,
+    Pomodoro,
+}
+
+impl TimerMode {
+    pub fn is_countdown(self) -> bool {
+        !matches!(self, Self::Stopwatch)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,6 +35,19 @@ pub struct FinishedInterval {
     pub mode: TimerMode,
     pub started_at: SystemTime,
     pub ended_at: SystemTime,
+    pub records_entry: bool,
+}
+
+impl FinishedInterval {
+    #[allow(dead_code)]
+    pub fn new(mode: TimerMode, started_at: SystemTime, ended_at: SystemTime) -> Self {
+        Self {
+            mode,
+            started_at,
+            ended_at,
+            records_entry: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +62,12 @@ pub struct TimerEngine {
     /// Wall-clock anchor while running (stopwatch mode).
     started_at: Option<SystemTime>,
     status: TimerStatus,
+    timer_duration_secs: u64,
+    pomodoro_phase: PomodoroPhase,
+    pomodoro_completed_sessions: u32,
+    pomodoro_sessions_until_long_break: u32,
+    #[serde(default)]
+    pomodoro_waiting: bool,
 }
 
 impl Default for TimerEngine {
@@ -58,6 +86,11 @@ impl TimerEngine {
             elapsed_at_pause: 0,
             started_at: None,
             status: TimerStatus::Idle,
+            timer_duration_secs: duration_secs,
+            pomodoro_phase: PomodoroPhase::Session,
+            pomodoro_completed_sessions: 0,
+            pomodoro_sessions_until_long_break: PomodoroConfig::DEFAULT_SESSIONS_UNTIL_LONG_BREAK,
+            pomodoro_waiting: false,
         }
     }
 
@@ -73,6 +106,43 @@ impl TimerEngine {
         self.duration_secs
     }
 
+    pub fn timer_duration_secs(&self) -> u64 {
+        self.timer_duration_secs
+    }
+
+    pub fn pomodoro_phase(&self) -> PomodoroPhase {
+        self.pomodoro_phase
+    }
+
+    pub fn pomodoro_completed_sessions(&self) -> u32 {
+        self.pomodoro_completed_sessions
+    }
+
+    pub fn pomodoro_sessions_until_long_break(&self) -> u32 {
+        self.pomodoro_sessions_until_long_break
+    }
+
+    pub fn is_break(&self) -> bool {
+        self.mode == TimerMode::Pomodoro && self.pomodoro_phase.is_break()
+    }
+
+    pub fn waiting(&self) -> bool {
+        self.mode == TimerMode::Pomodoro && self.pomodoro_waiting
+    }
+
+    fn records_current_interval(&self) -> bool {
+        !self.is_break()
+    }
+
+    fn finish(&self, started_at: SystemTime, ended_at: SystemTime) -> FinishedInterval {
+        FinishedInterval {
+            mode: self.mode,
+            started_at,
+            ended_at,
+            records_entry: self.records_current_interval(),
+        }
+    }
+
     pub fn deadline(&self) -> Option<SystemTime> {
         self.deadline
     }
@@ -83,11 +153,7 @@ impl TimerEngine {
     /// sleep). Does not mutate engine state.
     pub fn interval_in_progress(&self, ended_at: SystemTime) -> Option<FinishedInterval> {
         self.current_interval_start()
-            .map(|started_at| FinishedInterval {
-                mode: self.mode,
-                started_at,
-                ended_at,
-            })
+            .map(|started_at| self.finish(started_at, ended_at))
     }
 
     pub fn started_at(&self) -> Option<SystemTime> {
@@ -123,9 +189,10 @@ impl TimerEngine {
 
     /// Sleep this long before the displayed second should change.
     pub fn time_until_display_tick(&self, now: SystemTime) -> Duration {
-        match self.mode {
-            TimerMode::Timer => self.time_until_display_tick_timer(now),
-            TimerMode::Stopwatch => self.time_until_display_tick_stopwatch(now),
+        if self.mode.is_countdown() {
+            self.time_until_display_tick_timer(now)
+        } else {
+            self.time_until_display_tick_stopwatch(now)
         }
     }
 
@@ -173,16 +240,28 @@ impl TimerEngine {
         if !matches!(self.status, TimerStatus::Idle | TimerStatus::Completed) {
             return;
         }
+        if self.waiting() {
+            return;
+        }
+        if self.mode == TimerMode::Timer {
+            self.timer_duration_secs = self.duration_secs;
+        }
         self.mode = mode;
         self.deadline = None;
         self.started_at = None;
         self.status = TimerStatus::Idle;
+        self.pomodoro_waiting = false;
         match mode {
             TimerMode::Timer => {
+                self.duration_secs = self.timer_duration_secs;
                 self.remaining_at_pause = self.duration_secs;
                 self.elapsed_at_pause = 0;
             }
             TimerMode::Stopwatch => {
+                self.elapsed_at_pause = 0;
+                self.remaining_at_pause = self.duration_secs;
+            }
+            TimerMode::Pomodoro => {
                 self.elapsed_at_pause = 0;
                 self.remaining_at_pause = self.duration_secs;
             }
@@ -191,6 +270,9 @@ impl TimerEngine {
 
     pub fn set_duration(&mut self, duration_secs: u64) {
         self.duration_secs = duration_secs;
+        if self.mode == TimerMode::Timer {
+            self.timer_duration_secs = duration_secs;
+        }
         if matches!(self.status, TimerStatus::Idle | TimerStatus::Completed) {
             self.remaining_at_pause = duration_secs;
             self.deadline = None;
@@ -200,9 +282,10 @@ impl TimerEngine {
     }
 
     pub fn start(&mut self, now: SystemTime) {
-        match self.mode {
-            TimerMode::Timer => self.start_timer(now),
-            TimerMode::Stopwatch => self.start_stopwatch(now),
+        if self.mode.is_countdown() {
+            self.start_timer(now);
+        } else {
+            self.start_stopwatch(now);
         }
     }
 
@@ -219,6 +302,7 @@ impl TimerEngine {
         self.deadline = Some(now + Duration::from_secs(self.remaining_at_pause));
         self.started_at = None;
         self.status = TimerStatus::Running;
+        self.pomodoro_waiting = false;
     }
 
     fn start_stopwatch(&mut self, now: SystemTime) {
@@ -235,15 +319,12 @@ impl TimerEngine {
             return None;
         }
         let started_at = self.current_interval_start();
-        match self.mode {
-            TimerMode::Timer => self.pause_timer(now),
-            TimerMode::Stopwatch => self.pause_stopwatch(now),
+        if self.mode.is_countdown() {
+            self.pause_timer(now);
+        } else {
+            self.pause_stopwatch(now);
         }
-        started_at.map(|started_at| FinishedInterval {
-            mode: self.mode,
-            started_at,
-            ended_at: now,
-        })
+        started_at.map(|started_at| self.finish(started_at, now))
     }
 
     /// The wall-clock instant the currently-running interval began, derived
@@ -268,13 +349,12 @@ impl TimerEngine {
         if self.status != TimerStatus::Running {
             return None;
         }
-        match self.mode {
-            TimerMode::Timer => self
-                .deadline
-                .map(|deadline| deadline - Duration::from_secs(self.remaining_at_pause)),
-            TimerMode::Stopwatch => self
-                .started_at
-                .map(|started_at| started_at + Duration::from_secs(self.elapsed_at_pause)),
+        if self.mode.is_countdown() {
+            self.deadline
+                .map(|deadline| deadline - Duration::from_secs(self.remaining_at_pause))
+        } else {
+            self.started_at
+                .map(|started_at| started_at + Duration::from_secs(self.elapsed_at_pause))
         }
     }
 
@@ -298,9 +378,10 @@ impl TimerEngine {
         if self.status != TimerStatus::Paused {
             return;
         }
-        match self.mode {
-            TimerMode::Timer => self.resume_timer(now),
-            TimerMode::Stopwatch => self.resume_stopwatch(now),
+        if self.mode.is_countdown() {
+            self.resume_timer(now);
+        } else {
+            self.resume_stopwatch(now);
         }
     }
 
@@ -347,11 +428,7 @@ impl TimerEngine {
     pub fn reset(&mut self, now: SystemTime) -> Option<FinishedInterval> {
         let finished = self
             .current_interval_start()
-            .map(|started_at| FinishedInterval {
-                mode: self.mode,
-                started_at,
-                ended_at: now,
-            });
+            .map(|started_at| self.finish(started_at, now));
         self.return_to_idle();
         finished
     }
@@ -365,13 +442,10 @@ impl TimerEngine {
         self.deadline = None;
         self.started_at = None;
         self.status = TimerStatus::Idle;
-        match self.mode {
-            TimerMode::Timer => {
-                self.remaining_at_pause = self.duration_secs;
-            }
-            TimerMode::Stopwatch => {
-                self.elapsed_at_pause = 0;
-            }
+        if self.mode.is_countdown() {
+            self.remaining_at_pause = self.duration_secs;
+        } else {
+            self.elapsed_at_pause = 0;
         }
     }
 
@@ -413,11 +487,7 @@ impl TimerEngine {
                 break;
             }
             if next_midnight > segment_start {
-                finished.push(FinishedInterval {
-                    mode: self.mode,
-                    started_at: segment_start,
-                    ended_at: next_midnight,
-                });
+                finished.push(self.finish(segment_start, next_midnight));
             }
             segment_start = next_midnight;
             retarget_to = Some(next_midnight);
@@ -432,44 +502,41 @@ impl TimerEngine {
     /// Latest instant that still belongs to this run. A timer that already
     /// hit its deadline must not close days past that deadline.
     fn split_horizon(&self, now: SystemTime) -> SystemTime {
-        match self.mode {
-            TimerMode::Timer => self
-                .deadline
+        if self.mode.is_countdown() {
+            self.deadline
                 .filter(|deadline| *deadline <= now)
-                .unwrap_or(now),
-            TimerMode::Stopwatch => now,
+                .unwrap_or(now)
+        } else {
+            now
         }
     }
 
     fn retarget_interval_start(&mut self, new_start: SystemTime) {
-        match self.mode {
-            TimerMode::Timer => {
-                let Some(deadline) = self.deadline else {
-                    return;
-                };
-                let Ok(until_deadline) = deadline.duration_since(new_start) else {
-                    return;
-                };
-                // Floor so `deadline - remaining_at_pause` lands on or after
-                // midnight when `deadline` has a fractional second.
-                self.remaining_at_pause = until_deadline.as_secs();
-            }
-            TimerMode::Stopwatch => {
-                let Some(anchor) = self.started_at else {
-                    return;
-                };
-                let Ok(offset) = new_start.duration_since(anchor) else {
-                    return;
-                };
-                let secs = offset.as_secs();
-                // Ceil so `started_at + elapsed_at_pause` lands on or after
-                // midnight. Display elapsed still reads `started_at` alone.
-                self.elapsed_at_pause = if offset.subsec_nanos() == 0 {
-                    secs
-                } else {
-                    secs.saturating_add(1)
-                };
-            }
+        if self.mode.is_countdown() {
+            let Some(deadline) = self.deadline else {
+                return;
+            };
+            let Ok(until_deadline) = deadline.duration_since(new_start) else {
+                return;
+            };
+            // Floor so `deadline - remaining_at_pause` lands on or after
+            // midnight when `deadline` has a fractional second.
+            self.remaining_at_pause = until_deadline.as_secs();
+        } else {
+            let Some(anchor) = self.started_at else {
+                return;
+            };
+            let Ok(offset) = new_start.duration_since(anchor) else {
+                return;
+            };
+            let secs = offset.as_secs();
+            // Ceil so `started_at + elapsed_at_pause` lands on or after
+            // midnight. Display elapsed still reads `started_at` alone.
+            self.elapsed_at_pause = if offset.subsec_nanos() == 0 {
+                secs
+            } else {
+                secs.saturating_add(1)
+            };
         }
     }
 
@@ -490,11 +557,7 @@ impl TimerEngine {
             self.deadline = None;
             self.remaining_at_pause = 0;
             self.status = TimerStatus::Completed;
-            return started_at.map(|started_at| FinishedInterval {
-                mode: self.mode,
-                started_at,
-                ended_at,
-            });
+            return started_at.map(|started_at| self.finish(started_at, ended_at));
         }
         None
     }
@@ -521,7 +584,9 @@ impl TimerEngine {
     }
 
     pub fn restore_paused(&mut self, remaining_secs: u64) {
-        self.mode = TimerMode::Timer;
+        if self.mode == TimerMode::Stopwatch {
+            self.mode = TimerMode::Timer;
+        }
         self.deadline = None;
         self.started_at = None;
         self.remaining_at_pause = remaining_secs.min(self.duration_secs);
@@ -546,6 +611,128 @@ impl TimerEngine {
         self.started_at = None;
         self.remaining_at_pause = 0;
         self.status = TimerStatus::Completed;
+    }
+
+    pub fn restore_pomodoro_cycle(
+        &mut self,
+        phase: PomodoroPhase,
+        completed_sessions: u32,
+        sessions_until_long_break: u32,
+    ) {
+        self.pomodoro_phase = phase;
+        self.pomodoro_completed_sessions = completed_sessions;
+        self.pomodoro_sessions_until_long_break =
+            PomodoroConfig::sessions_until_long_break(sessions_until_long_break);
+    }
+
+    pub fn restore_timer_duration(&mut self, duration_secs: u64) {
+        self.timer_duration_secs = duration_secs;
+    }
+
+    pub fn restore_countdown_running(
+        &mut self,
+        deadline: SystemTime,
+        now: SystemTime,
+    ) -> Option<FinishedInterval> {
+        self.deadline = Some(deadline);
+        self.started_at = None;
+        self.status = TimerStatus::Running;
+        if let Some(finished) = self.tick(now) {
+            Some(finished)
+        } else {
+            self.remaining_at_pause = self.remaining_secs(now);
+            None
+        }
+    }
+
+    pub fn apply_idle_pomodoro_config(&mut self, config: &PomodoroConfig) {
+        if self.mode != TimerMode::Pomodoro {
+            return;
+        }
+        if !matches!(self.status, TimerStatus::Idle | TimerStatus::Completed) {
+            return;
+        }
+        if self.pomodoro_phase == PomodoroPhase::Session && self.pomodoro_completed_sessions == 0 {
+            self.pomodoro_sessions_until_long_break =
+                PomodoroConfig::sessions_until_long_break(config.sessions_until_long_break);
+        }
+        self.set_duration(config.duration_for(self.pomodoro_phase));
+    }
+
+    pub fn reset_cycle(&mut self, config: &PomodoroConfig) {
+        self.pomodoro_phase = PomodoroPhase::Session;
+        self.pomodoro_completed_sessions = 0;
+        self.pomodoro_sessions_until_long_break =
+            PomodoroConfig::sessions_until_long_break(config.sessions_until_long_break);
+        self.set_duration(config.session_secs);
+        self.return_to_idle();
+        self.pomodoro_waiting = false;
+    }
+
+    pub fn advance_after_completion(&mut self, now: SystemTime, config: &PomodoroConfig) {
+        if self.mode != TimerMode::Pomodoro {
+            return;
+        }
+        match self.pomodoro_phase {
+            PomodoroPhase::Session => {
+                self.pomodoro_completed_sessions =
+                    self.pomodoro_completed_sessions.saturating_add(1);
+                self.pomodoro_phase = if self.pomodoro_completed_sessions
+                    >= self.pomodoro_sessions_until_long_break
+                {
+                    PomodoroPhase::LongBreak
+                } else {
+                    PomodoroPhase::ShortBreak
+                };
+                self.set_duration(config.duration_for(self.pomodoro_phase));
+                if config.auto_start_breaks {
+                    self.start(now);
+                } else {
+                    self.pomodoro_waiting = true;
+                }
+            }
+            PomodoroPhase::ShortBreak => {
+                self.pomodoro_phase = PomodoroPhase::Session;
+                self.set_duration(config.session_secs);
+                if config.auto_start_sessions {
+                    self.start(now);
+                } else {
+                    self.pomodoro_waiting = true;
+                }
+            }
+            PomodoroPhase::LongBreak => {
+                self.reset_cycle(config);
+                if config.auto_start_sessions {
+                    self.start(now);
+                } else {
+                    self.pomodoro_waiting = true;
+                }
+            }
+        }
+    }
+
+    pub fn skip_break(&mut self, config: &PomodoroConfig) -> bool {
+        if self.mode != TimerMode::Pomodoro || !self.pomodoro_phase.is_break() {
+            return false;
+        }
+        let in_flight = matches!(self.status, TimerStatus::Running | TimerStatus::Paused);
+        if !in_flight && !(self.status == TimerStatus::Idle && self.pomodoro_waiting) {
+            return false;
+        }
+        let long_break = self.pomodoro_phase == PomodoroPhase::LongBreak;
+        self.discard();
+        if long_break {
+            self.reset_cycle(config);
+        } else {
+            self.pomodoro_phase = PomodoroPhase::Session;
+            self.set_duration(config.session_secs);
+        }
+        self.pomodoro_waiting = true;
+        true
+    }
+
+    pub fn restore_waiting(&mut self, waiting: bool) {
+        self.pomodoro_waiting = waiting;
     }
 }
 
@@ -764,6 +951,22 @@ mod tests {
         engine.start(now);
         engine.set_mode(TimerMode::Stopwatch);
         assert_eq!(engine.mode(), TimerMode::Timer);
+    }
+
+    #[test]
+    fn set_mode_does_not_leave_waiting() {
+        let mut engine = TimerEngine::new(25);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        engine.tick(now + Duration::from_secs(25));
+        engine.advance_after_completion(now + Duration::from_secs(25), &config);
+        assert!(engine.waiting());
+        engine.set_mode(TimerMode::Timer);
+        assert_eq!(engine.mode(), TimerMode::Pomodoro);
+        assert!(engine.waiting());
     }
 
     #[test]
@@ -1168,5 +1371,311 @@ mod tests {
         assert_eq!(completed.ended_at, midnight);
         assert!(crate::entries::entry_from_interval(completed).is_none());
         assert_eq!(engine.status(), TimerStatus::Completed);
+    }
+
+    fn pomodoro_config() -> PomodoroConfig {
+        PomodoroConfig {
+            session_secs: 25,
+            short_break_secs: 5,
+            long_break_secs: 15,
+            sessions_until_long_break: 4,
+            auto_start_sessions: false,
+            auto_start_breaks: false,
+        }
+    }
+
+    #[test]
+    fn pomodoro_session_counts_down_and_records() {
+        let mut engine = TimerEngine::new(25);
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&pomodoro_config());
+        let now = t0();
+        engine.start(now);
+        let finished = engine.tick(now + Duration::from_secs(25)).unwrap();
+        assert_eq!(finished.mode, TimerMode::Pomodoro);
+        assert!(finished.records_entry);
+        assert_eq!(engine.status(), TimerStatus::Completed);
+        assert!(crate::entries::entry_from_interval(finished).is_some());
+    }
+
+    #[test]
+    fn pomodoro_session_completion_advances_to_short_break() {
+        let mut engine = TimerEngine::new(25);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        engine.tick(now + Duration::from_secs(25));
+        engine.advance_after_completion(now + Duration::from_secs(25), &config);
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::ShortBreak);
+        assert_eq!(engine.pomodoro_completed_sessions(), 1);
+        assert_eq!(engine.duration_secs(), 5);
+        assert_eq!(engine.status(), TimerStatus::Idle);
+        assert!(engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_fourth_session_advances_to_long_break() {
+        let mut engine = TimerEngine::new(25);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&config);
+        engine.restore_pomodoro_cycle(PomodoroPhase::Session, 3, 4);
+        let now = t0();
+        engine.start(now);
+        engine.tick(now + Duration::from_secs(25));
+        engine.advance_after_completion(now + Duration::from_secs(25), &config);
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::LongBreak);
+        assert_eq!(engine.pomodoro_completed_sessions(), 4);
+        assert_eq!(engine.duration_secs(), 15);
+        assert!(engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_break_does_not_record_and_skip_keeps_cycle() {
+        let mut engine = TimerEngine::new(25);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.restore_pomodoro_cycle(PomodoroPhase::ShortBreak, 2, 4);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        let finished = engine.pause(now + Duration::from_secs(3)).unwrap();
+        assert!(!finished.records_entry);
+        assert!(crate::entries::entry_from_interval(finished).is_none());
+
+        engine.resume(now + Duration::from_secs(3));
+        assert!(engine.skip_break(&config));
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::Session);
+        assert_eq!(engine.pomodoro_completed_sessions(), 2);
+        assert_eq!(engine.duration_secs(), 25);
+        assert_eq!(engine.status(), TimerStatus::Idle);
+        assert!(engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_skip_while_waiting_on_a_break_jumps_to_the_next_session() {
+        let mut engine = TimerEngine::new(25);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        engine.tick(now + Duration::from_secs(25));
+        engine.advance_after_completion(now + Duration::from_secs(25), &config);
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::ShortBreak);
+        assert!(engine.waiting());
+        assert!(engine.skip_break(&config));
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::Session);
+        assert_eq!(engine.pomodoro_completed_sessions(), 1);
+        assert_eq!(engine.duration_secs(), 25);
+        assert_eq!(engine.status(), TimerStatus::Idle);
+        assert!(engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_skip_of_a_long_break_while_waiting_is_session_one_waiting() {
+        let mut engine = TimerEngine::new(25);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.restore_pomodoro_cycle(PomodoroPhase::LongBreak, 4, 4);
+        engine.apply_idle_pomodoro_config(&config);
+        engine.restore_waiting(true);
+        assert!(engine.skip_break(&config));
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::Session);
+        assert_eq!(engine.pomodoro_completed_sessions(), 0);
+        assert_eq!(engine.status(), TimerStatus::Idle);
+        assert!(engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_skip_does_not_auto_start_the_next_session() {
+        let mut engine = TimerEngine::new(25);
+        let config = PomodoroConfig {
+            auto_start_sessions: true,
+            ..pomodoro_config()
+        };
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.restore_pomodoro_cycle(PomodoroPhase::ShortBreak, 1, 4);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        assert!(engine.skip_break(&config));
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::Session);
+        assert_eq!(engine.status(), TimerStatus::Idle);
+        assert!(engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_cancel_leaves_waiting() {
+        let mut engine = TimerEngine::new(25);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        engine.tick(now + Duration::from_secs(25));
+        engine.advance_after_completion(now + Duration::from_secs(25), &config);
+        assert!(engine.waiting());
+        engine.reset_cycle(&config);
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::Session);
+        assert_eq!(engine.pomodoro_completed_sessions(), 0);
+        assert_eq!(engine.status(), TimerStatus::Idle);
+        assert!(!engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_start_from_waiting_clears_waiting() {
+        let mut engine = TimerEngine::new(25);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        engine.tick(now + Duration::from_secs(25));
+        engine.advance_after_completion(now + Duration::from_secs(25), &config);
+        assert!(engine.waiting());
+        engine.start(now + Duration::from_secs(25));
+        assert_eq!(engine.status(), TimerStatus::Running);
+        assert!(!engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_cancel_resets_cycle_to_session_one() {
+        let mut engine = TimerEngine::new(25);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.restore_pomodoro_cycle(PomodoroPhase::ShortBreak, 2, 4);
+        engine.apply_idle_pomodoro_config(&config);
+        engine.reset_cycle(&config);
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::Session);
+        assert_eq!(engine.pomodoro_completed_sessions(), 0);
+        assert_eq!(engine.duration_secs(), 25);
+        assert_eq!(engine.status(), TimerStatus::Idle);
+        assert!(!engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_short_session_still_advances_the_cycle() {
+        let mut engine = TimerEngine::new(5);
+        let config = PomodoroConfig {
+            session_secs: 5,
+            ..pomodoro_config()
+        };
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        let finished = engine.tick(now + Duration::from_secs(5)).unwrap();
+        assert!(crate::entries::entry_from_interval(finished).is_none());
+        engine.advance_after_completion(now + Duration::from_secs(5), &config);
+        assert_eq!(engine.pomodoro_completed_sessions(), 1);
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::ShortBreak);
+    }
+
+    #[test]
+    fn pomodoro_set_mode_to_timer_preserves_cycle() {
+        let mut engine = TimerEngine::new(1500);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.restore_pomodoro_cycle(PomodoroPhase::ShortBreak, 2, 4);
+        engine.apply_idle_pomodoro_config(&config);
+        engine.set_mode(TimerMode::Timer);
+        assert_eq!(engine.mode(), TimerMode::Timer);
+        assert_eq!(engine.duration_secs(), 1500);
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&config);
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::ShortBreak);
+        assert_eq!(engine.pomodoro_completed_sessions(), 2);
+        assert_eq!(engine.duration_secs(), 5);
+    }
+
+    #[test]
+    fn pomodoro_auto_start_break_starts_the_next_phase() {
+        let mut engine = TimerEngine::new(25);
+        let config = PomodoroConfig {
+            auto_start_breaks: true,
+            ..pomodoro_config()
+        };
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        engine.tick(now + Duration::from_secs(25));
+        engine.advance_after_completion(now + Duration::from_secs(25), &config);
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::ShortBreak);
+        assert_eq!(engine.status(), TimerStatus::Running);
+        assert!(!engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_long_break_after_applies_on_a_fresh_cycle() {
+        let mut engine = TimerEngine::new(25);
+        let mut config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.apply_idle_pomodoro_config(&config);
+        assert_eq!(engine.pomodoro_sessions_until_long_break(), 4);
+        config.sessions_until_long_break = 6;
+        engine.apply_idle_pomodoro_config(&config);
+        assert_eq!(engine.pomodoro_sessions_until_long_break(), 6);
+
+        engine.restore_pomodoro_cycle(PomodoroPhase::Session, 2, 4);
+        config.sessions_until_long_break = 8;
+        engine.apply_idle_pomodoro_config(&config);
+        assert_eq!(engine.pomodoro_sessions_until_long_break(), 4);
+    }
+
+    #[test]
+    fn pomodoro_long_break_completion_resets_cycle() {
+        let mut engine = TimerEngine::new(15);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.restore_pomodoro_cycle(PomodoroPhase::LongBreak, 4, 4);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        let finished = engine.tick(now + Duration::from_secs(15)).unwrap();
+        assert!(!finished.records_entry);
+        engine.advance_after_completion(now + Duration::from_secs(15), &config);
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::Session);
+        assert_eq!(engine.pomodoro_completed_sessions(), 0);
+        assert_eq!(engine.duration_secs(), 25);
+        assert_eq!(engine.status(), TimerStatus::Idle);
+        assert!(engine.waiting());
+    }
+
+    #[test]
+    fn pomodoro_break_midnight_split_does_not_record() {
+        let mut engine = TimerEngine::new(4 * 60 * 60);
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.restore_pomodoro_cycle(PomodoroPhase::ShortBreak, 1, 4);
+        engine.set_duration(4 * 60 * 60);
+        let start = local_dt(2026, 6, 15, 23, 0, 0);
+        let after = local_dt(2026, 6, 16, 0, 30, 0);
+        engine.start(start);
+        let finished = engine.split_crossed_midnight(after);
+        assert_eq!(finished.len(), 1);
+        assert!(!finished[0].records_entry);
+        assert!(crate::entries::entry_from_interval(finished[0]).is_none());
+        assert_eq!(engine.status(), TimerStatus::Running);
+    }
+
+    #[test]
+    fn pomodoro_short_break_completion_is_waiting_on_the_next_session() {
+        let mut engine = TimerEngine::new(5);
+        let config = pomodoro_config();
+        engine.set_mode(TimerMode::Pomodoro);
+        engine.restore_pomodoro_cycle(PomodoroPhase::ShortBreak, 1, 4);
+        engine.apply_idle_pomodoro_config(&config);
+        let now = t0();
+        engine.start(now);
+        engine.tick(now + Duration::from_secs(5));
+        engine.advance_after_completion(now + Duration::from_secs(5), &config);
+        assert_eq!(engine.pomodoro_phase(), PomodoroPhase::Session);
+        assert_eq!(engine.pomodoro_completed_sessions(), 1);
+        assert_eq!(engine.duration_secs(), 25);
+        assert_eq!(engine.status(), TimerStatus::Idle);
+        assert!(engine.waiting());
     }
 }

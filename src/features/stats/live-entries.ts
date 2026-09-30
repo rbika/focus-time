@@ -10,7 +10,7 @@ export type ActiveInterval = {
 
 type LiveSnapshot = Pick<
   TimerSnapshot,
-  'status' | 'mode' | 'intervalElapsedSecs'
+  'status' | 'mode' | 'intervalElapsedSecs' | 'isBreak'
 >
 
 /** The in-flight interval, or `null` unless the engine is `running`.
@@ -23,6 +23,7 @@ export function selectActiveInterval(
   snapshot: LiveSnapshot | null,
 ): ActiveInterval | null {
   if (snapshot?.status !== 'running') return null
+  if (snapshot.isBreak) return null
   return {
     mode: snapshot.mode,
     intervalElapsedSecs: snapshot.intervalElapsedSecs,
