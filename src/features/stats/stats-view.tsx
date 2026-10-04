@@ -162,7 +162,7 @@ export function StatsView({ active }: { active: boolean }) {
                 Entries
               </TabsTrigger>
             </TabsList>
-            <div className="relative min-h-0 flex-1 overflow-hidden">
+            <div className="relative min-h-0 flex-1">
               <CrossfadeSlot
                 frame={tabs.frames.dashboard}
                 animate={tabs.animate}

@@ -8,6 +8,7 @@ use crate::app_state::AppState;
 
 pub const AUTO_CHECK_INTERVAL_SECS: u64 = 24 * 60 * 60;
 const STATUS_EVENT: &str = "update-status";
+const PREVIEW_EVENT: &str = "update-progress-preview";
 const NOTES_PREVIEW_CHARS: usize = 400;
 const UPDATE_AVAILABLE_WINDOW: &str = "update-available";
 const UPDATE_PROGRESS_WINDOW: &str = "update-progress";
@@ -21,6 +22,12 @@ pub struct PendingUpdate {
 pub struct DownloadedUpdate {
     pub update: tauri_plugin_updater::Update,
     pub bytes: Vec<u8>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateProgressPreview {
+    install_failed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -330,6 +337,12 @@ pub fn dismiss_update_progress(app: &AppHandle) {
         restore_available_update(app);
         show_update_available_window(app);
     }
+}
+
+pub fn preview_update_progress(app: &AppHandle, status: UpdateStatus, install_failed: bool) {
+    set_status(app, status);
+    let _ = app.emit(PREVIEW_EVENT, UpdateProgressPreview { install_failed });
+    show_update_progress_window(app);
 }
 
 pub async fn install_and_restart(app: AppHandle) -> Result<(), String> {

@@ -478,6 +478,15 @@ pub fn dismiss_update_progress(app: AppHandle) {
 }
 
 #[tauri::command]
+pub fn preview_update_progress(
+    app: AppHandle,
+    status: crate::updater::UpdateStatus,
+    install_failed: Option<bool>,
+) {
+    crate::updater::preview_update_progress(&app, status, install_failed.unwrap_or(false));
+}
+
+#[tauri::command]
 pub async fn install_and_restart(app: AppHandle) -> Result<(), String> {
     crate::updater::install_and_restart(app).await
 }

@@ -92,6 +92,16 @@ The separate preferences window, with tabs General, Timer, Pomodoro, Notificatio
 
 _Avoid: Settings view. Do not treat Settings as a view inside the main window. Statistics is a group on General, not this window. Stats is the focused-time review surface._
 
+**Update progress window**:
+The window shown after Install update from the available sheet. It has four screens: Downloading (progress and Cancel; Cancel stays visible but disabled while the bar finishes filling), Ready to install (Later / Install and restart), Install failed, and Error (OK). The icon is shared; each screen swaps title, body, and a caption | actions row in one column beside it. Downloading puts bytes and Cancel on that row. Ready to install, Install failed, and Error leave the caption empty so actions sit alone — Error's message is the body, like Install failed. All four screens are the same size. Other update statuses do not show this window.
+
+_Avoid: treating the bar-fill hold as its own screen. Do not treat this as the available sheet or the up-to-date sheet. Do not grow the window. Do not put Error's OK on the same row as the message._
+
+**Install failed**:
+The Update progress window screen after Install and restart fails. The downloaded update is still ready; Later and Install and restart stay available. The title stays Ready to install.
+
+_Avoid: Error (that is a failed check or download). Ready to restart as a user-facing name._
+
 **Completion sound**:
 The sound played when a Timer Interval, Session, or Break completes naturally. Chosen in Settings → Notifications. None plays nothing.
 

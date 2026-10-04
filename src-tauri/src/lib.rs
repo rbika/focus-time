@@ -70,6 +70,7 @@ pub fn run() {
             commands::dismiss_available_update,
             commands::cancel_update_download,
             commands::dismiss_update_progress,
+            commands::preview_update_progress,
             commands::install_and_restart,
             window::resize_main_window,
         ])

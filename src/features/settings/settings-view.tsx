@@ -48,7 +48,7 @@ type SettingsTab = (typeof SETTINGS_TABS)[number][0]
 const DEFAULT_SETTINGS_TAB = SETTINGS_TABS[0][0]
 
 const tabPanelClassName =
-  'flex min-h-0 flex-col gap-5 overflow-y-auto overscroll-none pb-8 -mx-5 px-5'
+  'flex min-h-0 flex-col gap-5 overflow-y-auto overscroll-none pb-8 px-5'
 
 export function SettingsView() {
   const [tab, setTab] = useState<SettingsTab>(DEFAULT_SETTINGS_TAB)
@@ -140,7 +140,7 @@ export function SettingsView() {
         onValueChange={(value) => {
           if (isSettingsTab(value)) setTab(value)
         }}
-        className="min-h-0 flex-1 gap-5 px-5 pt-4"
+        className="min-h-0 flex-1 gap-5 pt-4"
       >
         <TabsList className="mx-auto shrink-0 gap-2">
           {SETTINGS_TABS.map(([value, label]) => (
@@ -266,6 +266,78 @@ export function SettingsView() {
                   </Button>
                 </SettingsGroupItemControl>
               </SettingsGroupItem>
+            </SettingsGroupContent>
+          </SettingsGroup>
+
+          {/* TEMP: preview update progress window states */}
+          <SettingsGroup>
+            <SettingsGroupTitle>Update progress preview</SettingsGroupTitle>
+            <SettingsGroupContent>
+              <div className="flex flex-wrap gap-1.5 p-3">
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  onClick={() =>
+                    void api.previewUpdateProgress({
+                      kind: 'downloading',
+                      downloaded: 42_000_000,
+                      total: 80_000_000,
+                    })
+                  }
+                >
+                  Downloading
+                </Button>
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  onClick={() =>
+                    void api.previewUpdateProgress({
+                      kind: 'downloading',
+                      downloaded: 12_000_000,
+                      total: null,
+                    })
+                  }
+                >
+                  Downloading (no total)
+                </Button>
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  onClick={() =>
+                    void api.previewUpdateProgress({
+                      kind: 'readyToRestart',
+                      version: '1.15.0',
+                    })
+                  }
+                >
+                  Ready
+                </Button>
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  onClick={() =>
+                    void api.previewUpdateProgress(
+                      { kind: 'readyToRestart', version: '1.15.0' },
+                      true,
+                    )
+                  }
+                >
+                  Install failed
+                </Button>
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  onClick={() =>
+                    void api.previewUpdateProgress({
+                      kind: 'error',
+                      message: 'Update failed.',
+                      manual: true,
+                    })
+                  }
+                >
+                  Error
+                </Button>
+              </div>
             </SettingsGroupContent>
           </SettingsGroup>
         </TabsContent>
