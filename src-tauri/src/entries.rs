@@ -151,6 +151,22 @@ fn split_range_at_local_midnights(started_at_unix: u64, ended_at_unix: u64) -> V
     }
 }
 
+fn entry_order_key(entry: &Entry) -> (u64, u64, &str) {
+    (
+        entry.started_at_unix,
+        entry.ended_at_unix,
+        entry.id.as_str(),
+    )
+}
+
+fn sort_oldest_first(entries: &mut [Entry]) {
+    entries.sort_by(|a, b| entry_order_key(a).cmp(&entry_order_key(b)));
+}
+
+fn sort_newest_first(entries: &mut [Entry]) {
+    entries.sort_by(|a, b| entry_order_key(b).cmp(&entry_order_key(a)));
+}
+
 fn entry_from_range(
     id: String,
     mode: EntryType,
@@ -225,24 +241,25 @@ impl EntriesStore {
     pub fn append(&self, entry: Entry) -> Result<(), String> {
         let mut entries = self.load_all();
         entries.push(entry);
-        self.write_all(&entries)
+        self.write_all(entries)
     }
 
     pub fn totals(&self, now: SystemTime, week_start: WeekStart) -> Totals {
         compute_totals(&self.load_all(), now, week_start)
     }
 
-    /// All Entries, newest-first.
+    /// All Entries, newest-first by start, then by end, then by id.
     pub fn load_all_newest_first(&self) -> Vec<Entry> {
         let mut entries = self.load_all();
-        entries.reverse();
+        sort_newest_first(&mut entries);
         entries
     }
 
     /// Corrects an Entry's start and end. Duration is derived. Mode is
     /// unchanged. Any duration is allowed as long as end is after start.
     /// A range that crosses local midnight is split: this Entry becomes
-    /// the earliest piece and later pieces are appended.
+    /// the earliest piece and later pieces are new. The file is rewritten
+    /// oldest-first by start.
     pub fn update_times(
         &self,
         id: &str,
@@ -271,14 +288,14 @@ impl EntriesStore {
                 ended,
             ));
         }
-        self.write_all(&entries)?;
+        self.write_all(entries)?;
         Ok(updated)
     }
 
     /// Persists a Manual entry. Any duration is allowed as long as end is
     /// after start; the 10-second recording skip does not apply. A range
     /// that crosses local midnight is split into one Entry per Calendar
-    /// day, appended earliest-first.
+    /// day, written oldest-first by start.
     pub fn create_manual(&self, started_at_unix: u64, ended_at_unix: u64) -> Result<Entry, String> {
         if ended_at_unix <= started_at_unix {
             return Err("invalid range".into());
@@ -300,7 +317,7 @@ impl EntriesStore {
         };
         let mut entries = self.load_all();
         entries.extend(created);
-        self.write_all(&entries)?;
+        self.write_all(entries)?;
         Ok(first)
     }
 
@@ -311,15 +328,16 @@ impl EntriesStore {
         if entries.len() == before {
             return Err("not found".into());
         }
-        self.write_all(&entries)
+        self.write_all(entries)
     }
 
     pub fn delete_all(&self) -> Result<(), String> {
-        self.write_all(&[])
+        self.write_all(Vec::new())
     }
 
-    fn write_all(&self, entries: &[Entry]) -> Result<(), String> {
-        let json = serde_json::to_vec_pretty(entries).map_err(|e| e.to_string())?;
+    fn write_all(&self, mut entries: Vec<Entry>) -> Result<(), String> {
+        sort_oldest_first(&mut entries);
+        let json = serde_json::to_vec_pretty(&entries).map_err(|e| e.to_string())?;
         crate::atomic_file::write_json(&self.path, &json)
     }
 }
@@ -411,6 +429,35 @@ mod tests {
     }
 
     #[test]
+    fn append_writes_oldest_first_by_start() {
+        let dir = temp_dir("append-sort");
+        fs::create_dir_all(&dir).unwrap();
+        let store = EntriesStore::new(dir.clone());
+
+        let later = Entry {
+            id: "later".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 300,
+            ended_at_unix: 400,
+            duration_secs: 100,
+        };
+        let earlier = Entry {
+            id: "earlier".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 100,
+            ended_at_unix: 200,
+            duration_secs: 100,
+        };
+        store.append(later.clone()).unwrap();
+        store.append(earlier.clone()).unwrap();
+
+        assert_eq!(store.load_all(), vec![earlier, later]);
+        assert!(!dir.join("entries.json.tmp").exists());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn append_preserves_existing_entries_and_appends_atomically() {
         let dir = temp_dir("append");
         fs::create_dir_all(&dir).unwrap();
@@ -463,6 +510,36 @@ mod tests {
         store.append(second.clone()).unwrap();
 
         assert_eq!(store.load_all_newest_first(), vec![second, first]);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_all_newest_first_orders_by_start_not_save_order() {
+        let dir = temp_dir("newest-by-start");
+        fs::create_dir_all(&dir).unwrap();
+        let store = EntriesStore::new(dir.clone());
+        let later = Entry {
+            id: "later".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 300,
+            ended_at_unix: 400,
+            duration_secs: 100,
+        };
+        let earlier = Entry {
+            id: "earlier".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 100,
+            ended_at_unix: 200,
+            duration_secs: 100,
+        };
+        fs::write(
+            dir.join("entries.json"),
+            serde_json::to_vec_pretty(&[later.clone(), earlier.clone()]).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(store.load_all_newest_first(), vec![later, earlier]);
 
         let _ = fs::remove_dir_all(dir);
     }
@@ -1199,6 +1276,129 @@ mod tests {
     }
 
     #[test]
+    fn same_start_orders_by_end_then_id() {
+        let dir = temp_dir("tie-end-id");
+        fs::create_dir_all(&dir).unwrap();
+        let store = EntriesStore::new(dir.clone());
+        let later_end = Entry {
+            id: "b".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 100,
+            ended_at_unix: 300,
+            duration_secs: 200,
+        };
+        let earlier_end = Entry {
+            id: "a".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 100,
+            ended_at_unix: 200,
+            duration_secs: 100,
+        };
+        store.append(later_end.clone()).unwrap();
+        store.append(earlier_end.clone()).unwrap();
+
+        assert_eq!(
+            store.load_all(),
+            vec![earlier_end.clone(), later_end.clone()]
+        );
+        assert_eq!(store.load_all_newest_first(), vec![later_end, earlier_end]);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn create_manual_inserts_by_start_among_existing() {
+        let dir = temp_dir("create-insert");
+        fs::create_dir_all(&dir).unwrap();
+        let store = EntriesStore::new(dir.clone());
+        store
+            .append(Entry {
+                id: "later".into(),
+                mode: EntryType::Timer,
+                started_at_unix: 300,
+                ended_at_unix: 400,
+                duration_secs: 100,
+            })
+            .unwrap();
+
+        let created = store.create_manual(100, 150).unwrap();
+        let loaded = store.load_all();
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0], created);
+        assert_eq!(loaded[1].id, "later");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn delete_rewrites_remaining_oldest_first() {
+        let dir = temp_dir("delete-sorts");
+        fs::create_dir_all(&dir).unwrap();
+        let store = EntriesStore::new(dir.clone());
+        let later = Entry {
+            id: "later".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 300,
+            ended_at_unix: 400,
+            duration_secs: 100,
+        };
+        let earlier = Entry {
+            id: "earlier".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 100,
+            ended_at_unix: 200,
+            duration_secs: 100,
+        };
+        let extra = Entry {
+            id: "extra".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 500,
+            ended_at_unix: 600,
+            duration_secs: 100,
+        };
+        fs::write(
+            dir.join("entries.json"),
+            serde_json::to_vec_pretty(&[later.clone(), extra.clone(), earlier.clone()]).unwrap(),
+        )
+        .unwrap();
+
+        store.delete("extra").unwrap();
+        assert_eq!(store.load_all(), vec![earlier, later]);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_all_does_not_rewrite_an_unsorted_file() {
+        let dir = temp_dir("load-no-rewrite");
+        fs::create_dir_all(&dir).unwrap();
+        let store = EntriesStore::new(dir.clone());
+        let later = Entry {
+            id: "later".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 300,
+            ended_at_unix: 400,
+            duration_secs: 100,
+        };
+        let earlier = Entry {
+            id: "earlier".into(),
+            mode: EntryType::Timer,
+            started_at_unix: 100,
+            ended_at_unix: 200,
+            duration_secs: 100,
+        };
+        let written = serde_json::to_vec_pretty(&[later.clone(), earlier.clone()]).unwrap();
+        fs::write(dir.join("entries.json"), &written).unwrap();
+
+        assert_eq!(store.load_all(), vec![later.clone(), earlier.clone()]);
+        assert_eq!(fs::read(dir.join("entries.json")).unwrap(), written);
+        assert_eq!(store.load_all_newest_first(), vec![later, earlier]);
+        assert_eq!(fs::read(dir.join("entries.json")).unwrap(), written);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn update_times_does_not_split_an_untouched_straddler() {
         let dir = temp_dir("update-other-leaves-straddler");
         fs::create_dir_all(&dir).unwrap();
@@ -1228,8 +1428,12 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(store.load_all()[0], straddler);
-        assert_eq!(store.load_all().len(), 2);
+        let loaded = store.load_all();
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(
+            loaded.iter().find(|entry| entry.id == "straddle"),
+            Some(&straddler)
+        );
 
         let _ = fs::remove_dir_all(dir);
     }

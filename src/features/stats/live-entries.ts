@@ -30,22 +30,31 @@ export function selectActiveInterval(
   }
 }
 
-/** Prepends a synthetic running entry. A null interval or an unloaded list
- * returns the same reference so an idle snapshot does not churn the list. */
+function startOfLocalDayTime(unixSecs: number): number {
+  const date = new Date(unixSecs * 1000)
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+}
+
+/** Pins a synthetic running entry to the top of its Calendar day. A null
+ * interval or an unloaded list returns the same reference so an idle
+ * snapshot does not churn the list. Assumes `entries` is newest-first. */
 export function withActiveEntry(
   entries: Entry[] | null,
   active: ActiveInterval | null,
   nowUnix: number = Math.floor(Date.now() / 1000),
 ): Entry[] | null {
   if (active == null || entries == null) return entries
-  return [
-    {
-      id: ACTIVE_ENTRY_ID,
-      mode: active.mode,
-      startedAtUnix: nowUnix - active.intervalElapsedSecs,
-      endedAtUnix: nowUnix,
-      durationSecs: active.intervalElapsedSecs,
-    },
-    ...entries,
-  ]
+  const running: Entry = {
+    id: ACTIVE_ENTRY_ID,
+    mode: active.mode,
+    startedAtUnix: nowUnix - active.intervalElapsedSecs,
+    endedAtUnix: nowUnix,
+    durationSecs: active.intervalElapsedSecs,
+  }
+  const runningDay = startOfLocalDayTime(running.startedAtUnix)
+  const insertAt = entries.findIndex(
+    (entry) => startOfLocalDayTime(entry.startedAtUnix) <= runningDay,
+  )
+  const index = insertAt === -1 ? entries.length : insertAt
+  return [...entries.slice(0, index), running, ...entries.slice(index)]
 }

@@ -109,6 +109,41 @@ describe('withActiveEntry', () => {
     ])
   })
 
+  it('pins running above a later-start Entry on the same Calendar day', () => {
+    const later: Entry = {
+      id: 'later',
+      mode: 'manual',
+      startedAtUnix: nowUnix - 10 * 60,
+      endedAtUnix: nowUnix - 5 * 60,
+      durationSecs: 5 * 60,
+    }
+    const entries = withActiveEntry(
+      [later],
+      { mode: 'timer', intervalElapsedSecs: 40 * 60 },
+      nowUnix,
+    )
+
+    assert.deepEqual(
+      entries?.map((entry) => entry.id),
+      [ACTIVE_ENTRY_ID, 'later'],
+    )
+  })
+
+  it('orders calendar-day sections newest first', () => {
+    const yesterday: Entry = {
+      id: 'yesterday',
+      mode: 'timer',
+      startedAtUnix: nowUnix - 86_400,
+      endedAtUnix: nowUnix - 86_400 + 600,
+      durationSecs: 600,
+    }
+    const sections = groupEntriesByDay([yesterday, persisted], now)
+    assert.deepEqual(
+      sections.map((section) => section.label),
+      ['Today', 'Yesterday'],
+    )
+  })
+
   it('groups the running entry into the day it started and adds its elapsed time', () => {
     const entries = withActiveEntry(
       [persisted],
@@ -126,6 +161,68 @@ describe('withActiveEntry', () => {
     )
     assert.equal(sections[0]?.entries[0]?.mode, 'stopwatch')
     assert.equal(sections[0]?.totalSecs, 690)
+  })
+
+  it('pins a running entry to the top of its Calendar day', () => {
+    const justAfterMidnight = new Date(2026, 8, 21, 0, 10, 0)
+    const justAfterMidnightUnix = Math.floor(justAfterMidnight.getTime() / 1000)
+    const todayEntry: Entry = {
+      id: 'today',
+      mode: 'timer',
+      startedAtUnix: justAfterMidnightUnix - 5 * 60,
+      endedAtUnix: justAfterMidnightUnix - 60,
+      durationSecs: 4 * 60,
+    }
+    const yesterdayEntry: Entry = {
+      id: 'yesterday',
+      mode: 'manual',
+      startedAtUnix: justAfterMidnightUnix - 26 * 60,
+      endedAtUnix: justAfterMidnightUnix - 25 * 60,
+      durationSecs: 60,
+    }
+    const entries = withActiveEntry(
+      [todayEntry, yesterdayEntry],
+      { mode: 'timer', intervalElapsedSecs: 20 * 60 },
+      justAfterMidnightUnix,
+    )
+
+    assert.deepEqual(
+      entries?.map((entry) => entry.id),
+      ['today', ACTIVE_ENTRY_ID, 'yesterday'],
+    )
+  })
+
+  it('keeps Today above a running entry that started yesterday', () => {
+    const justAfterMidnight = new Date(2026, 8, 21, 0, 10, 0)
+    const justAfterMidnightUnix = Math.floor(justAfterMidnight.getTime() / 1000)
+    const todayEntry: Entry = {
+      id: 'today',
+      mode: 'timer',
+      startedAtUnix: justAfterMidnightUnix - 5 * 60,
+      endedAtUnix: justAfterMidnightUnix - 60,
+      durationSecs: 4 * 60,
+    }
+    const elapsed = 20 * 60
+    const entries = withActiveEntry(
+      [todayEntry],
+      { mode: 'timer', intervalElapsedSecs: elapsed },
+      justAfterMidnightUnix,
+    )
+    assert.ok(entries)
+    const sections = groupEntriesByDay(entries, justAfterMidnight)
+
+    assert.deepEqual(
+      sections.map((section) => section.label),
+      ['Today', 'Yesterday'],
+    )
+    assert.deepEqual(
+      sections[0]?.entries.map((entry) => entry.id),
+      ['today'],
+    )
+    assert.deepEqual(
+      sections[1]?.entries.map((entry) => entry.id),
+      [ACTIVE_ENTRY_ID],
+    )
   })
 
   it('places a running entry that started before midnight in yesterday', () => {

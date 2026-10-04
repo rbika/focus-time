@@ -43,14 +43,19 @@ export function formatDayLabel(date: Date, now: Date): string {
   return formatOlderDayLabel(date, date.getFullYear() !== now.getFullYear())
 }
 
-/** Groups newest-first Entries into newest-first calendar-day sections
- * using each Entry's local start date. */
+function sectionDayTime(section: DaySection): number {
+  const first = section.entries[0]
+  if (first == null) return 0
+  return startOfLocalDay(new Date(first.startedAtUnix * 1000)).getTime()
+}
+
+/** Groups Entries into newest-first calendar-day sections using each
+ * Entry's local start date. */
 export function groupEntriesByDay(
   entries: Entry[],
   now: Date = new Date(),
 ): DaySection[] {
   const groups = new Map<string, Entry[]>()
-  const order: string[] = []
 
   for (const entry of entries) {
     const started = new Date(entry.startedAtUnix * 1000)
@@ -60,19 +65,22 @@ export function groupEntriesByDay(
       existing.push(entry)
     } else {
       groups.set(key, [entry])
-      order.push(key)
     }
   }
 
-  return order.map((key) => {
-    const dayEntries = groups.get(key) ?? []
-    const first = dayEntries[0]
-    const started = new Date(first.startedAtUnix * 1000)
-    return {
-      key,
-      label: formatDayLabel(started, now),
-      totalSecs: dayEntries.reduce((sum, entry) => sum + entry.durationSecs, 0),
-      entries: dayEntries,
-    }
-  })
+  return [...groups.entries()]
+    .map(([key, dayEntries]) => {
+      const first = dayEntries[0]
+      const started = new Date((first?.startedAtUnix ?? 0) * 1000)
+      return {
+        key,
+        label: formatDayLabel(started, now),
+        totalSecs: dayEntries.reduce(
+          (sum, entry) => sum + entry.durationSecs,
+          0,
+        ),
+        entries: dayEntries,
+      }
+    })
+    .sort((a, b) => sectionDayTime(b) - sectionDayTime(a))
 }
