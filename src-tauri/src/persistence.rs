@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use crate::entries::WeekStart;
 use crate::sound::{normalize_completion_sound, NO_COMPLETION_SOUND};
 use crate::timer::{
     FinishedInterval, PomodoroConfig, PomodoroPhase, TimerEngine, TimerMode, TimerStatus,
@@ -64,6 +65,8 @@ pub struct Settings {
     pub auto_start_sessions: bool,
     #[serde(default)]
     pub auto_start_breaks: bool,
+    #[serde(default)]
+    pub week_start: WeekStart,
 }
 
 impl Settings {
@@ -111,6 +114,7 @@ impl Default for Settings {
             sessions_until_long_break: default_sessions_until_long_break(),
             auto_start_sessions: false,
             auto_start_breaks: false,
+            week_start: WeekStart::Monday,
         }
     }
 }
@@ -365,6 +369,7 @@ mod tests {
         assert_eq!(s.sessions_until_long_break, 4);
         assert!(!s.auto_start_sessions);
         assert!(!s.auto_start_breaks);
+        assert_eq!(s.week_start, crate::entries::WeekStart::Monday);
     }
 
     #[test]
@@ -415,6 +420,7 @@ mod tests {
         assert!(json.contains("completionSound"));
         assert!(json.contains("autoCheckForUpdates"));
         assert!(json.contains("presets"));
+        assert!(json.contains("weekStart"));
         let parsed: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, Settings::default());
     }
@@ -440,6 +446,7 @@ mod tests {
         }"#;
         let state: PersistedState = serde_json::from_str(json).unwrap();
         assert_eq!(state.settings.presets, [Some(1800), Some(3600), Some(7200)]);
+        assert_eq!(state.settings.week_start, crate::entries::WeekStart::Monday);
     }
 
     #[test]

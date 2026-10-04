@@ -16,7 +16,8 @@ import {
   type Period,
 } from '@/features/stats/period'
 import { useLiveEntries } from '@/features/stats/use-live-entries'
-import type { Entry } from '@/lib/tauri'
+import { DEFAULT_WEEK_START, type Entry } from '@/lib/tauri'
+import { useTimerStore } from '@/store/timer-store'
 import { secsToSummaryLabel } from '@/utils/time'
 
 function useStickyHeaderFade(
@@ -144,11 +145,20 @@ export function EntriesTab({
   onOpenEntry: (entry: Entry) => void
 }) {
   const entries = useLiveEntries()
+  const weekStart = useTimerStore(
+    (s) => s.settings?.weekStart ?? DEFAULT_WEEK_START,
+  )
   const scrollerRef = useRef<HTMLDivElement>(null)
   const view =
     entries == null
       ? null
-      : visiblePeriodEntries(entries, period, new Date(), yearRevealSteps)
+      : visiblePeriodEntries(
+          entries,
+          period,
+          new Date(),
+          yearRevealSteps,
+          weekStart,
+        )
   const sections = view ? groupEntriesByDay(view.entries) : []
   const emptyMessage = view
     ? periodEmptyMessage(period, view.entries.length, view.canShowMore)

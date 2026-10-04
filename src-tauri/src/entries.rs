@@ -43,6 +43,14 @@ pub struct Entry {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
+pub enum WeekStart {
+    Sunday,
+    #[default]
+    Monday,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Totals {
     pub today: u64,
     pub this_week: u64,
@@ -160,15 +168,19 @@ fn entry_from_range(
 
 /// Sums Entry durations into Today/This-Week/This-Month buckets, bucketed
 /// by each Entry's start time using local-timezone calendar boundaries
-/// (day is midnight-to-midnight, week starts Monday, month is calendar
-/// month), for the given instant.
-pub fn compute_totals(entries: &[Entry], now: SystemTime) -> Totals {
+/// (day is midnight-to-midnight, week is seven Calendar days from
+/// `week_start`, month is calendar month), for the given instant.
+pub fn compute_totals(entries: &[Entry], now: SystemTime, week_start: WeekStart) -> Totals {
     let now_unix = now.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
     let now_local = to_local(now_unix).naive_local();
 
     let today_start = now_local.date().and_hms_opt(0, 0, 0).unwrap();
-    let days_since_monday = now_local.date().weekday().num_days_from_monday();
-    let week_start = today_start - chrono::Duration::days(days_since_monday as i64);
+    let days_since_week_start = match week_start {
+        WeekStart::Monday => now_local.date().weekday().num_days_from_monday(),
+        WeekStart::Sunday => now_local.date().weekday().num_days_from_sunday(),
+    };
+    let week_start_at = today_start - chrono::Duration::days(days_since_week_start as i64);
+    let week_end_at = week_start_at + chrono::Duration::days(7);
     let month_start = now_local
         .date()
         .with_day(1)
@@ -182,7 +194,7 @@ pub fn compute_totals(entries: &[Entry], now: SystemTime) -> Totals {
         if started_local >= today_start {
             totals.today += entry.duration_secs;
         }
-        if started_local >= week_start {
+        if started_local >= week_start_at && started_local < week_end_at {
             totals.this_week += entry.duration_secs;
         }
         if started_local >= month_start {
@@ -216,8 +228,8 @@ impl EntriesStore {
         self.write_all(&entries)
     }
 
-    pub fn totals(&self, now: SystemTime) -> Totals {
-        compute_totals(&self.load_all(), now)
+    pub fn totals(&self, now: SystemTime, week_start: WeekStart) -> Totals {
+        compute_totals(&self.load_all(), now, week_start)
     }
 
     /// All Entries, newest-first.
@@ -510,7 +522,7 @@ mod tests {
             },
         ];
 
-        let totals = compute_totals(&entries, now);
+        let totals = compute_totals(&entries, now, WeekStart::Monday);
         assert_eq!(totals.today, 600);
         assert_eq!(totals.this_week, 900);
         assert_eq!(totals.this_month, 1200);
@@ -527,7 +539,7 @@ mod tests {
             ended_at_unix: unix_at_local(2024, 1, 17, 0, 1, 0),
             duration_secs: 60,
         }];
-        assert_eq!(compute_totals(&entries, now).today, 60);
+        assert_eq!(compute_totals(&entries, now, WeekStart::Monday).today, 60);
 
         let entries_before_midnight = vec![Entry {
             id: "before-midnight".into(),
@@ -536,7 +548,10 @@ mod tests {
             ended_at_unix: unix_at_local(2024, 1, 17, 0, 0, 30),
             duration_secs: 31,
         }];
-        assert_eq!(compute_totals(&entries_before_midnight, now).today, 0);
+        assert_eq!(
+            compute_totals(&entries_before_midnight, now, WeekStart::Monday).today,
+            0
+        );
     }
 
     #[test]
@@ -551,7 +566,10 @@ mod tests {
             ended_at_unix: unix_at_local(2024, 1, 15, 0, 1, 0),
             duration_secs: 60,
         }];
-        assert_eq!(compute_totals(&on_monday, now).this_week, 60);
+        assert_eq!(
+            compute_totals(&on_monday, now, WeekStart::Monday).this_week,
+            60
+        );
 
         let before_monday = vec![Entry {
             id: "sunday".into(),
@@ -560,7 +578,95 @@ mod tests {
             ended_at_unix: unix_at_local(2024, 1, 14, 23, 59, 30),
             duration_secs: 30,
         }];
-        assert_eq!(compute_totals(&before_monday, now).this_week, 0);
+        assert_eq!(
+            compute_totals(&before_monday, now, WeekStart::Monday).this_week,
+            0
+        );
+    }
+
+    #[test]
+    fn sunday_week_start_includes_the_previous_sunday() {
+        // Wednesday 2024-01-17. Sunday week starts 2024-01-14.
+        let now =
+            SystemTime::UNIX_EPOCH + Duration::from_secs(unix_at_local(2024, 1, 17, 12, 0, 0));
+        let on_sunday = vec![Entry {
+            id: "sunday".into(),
+            mode: EntryType::Timer,
+            started_at_unix: unix_at_local(2024, 1, 14, 0, 0, 0),
+            ended_at_unix: unix_at_local(2024, 1, 14, 0, 1, 0),
+            duration_secs: 60,
+        }];
+        assert_eq!(
+            compute_totals(&on_sunday, now, WeekStart::Sunday).this_week,
+            60
+        );
+
+        let before_sunday = vec![Entry {
+            id: "saturday".into(),
+            mode: EntryType::Timer,
+            started_at_unix: unix_at_local(2024, 1, 13, 23, 59, 0),
+            ended_at_unix: unix_at_local(2024, 1, 13, 23, 59, 30),
+            duration_secs: 30,
+        }];
+        assert_eq!(
+            compute_totals(&before_sunday, now, WeekStart::Sunday).this_week,
+            0
+        );
+    }
+
+    #[test]
+    fn sunday_week_start_on_sunday_excludes_the_saturday_before() {
+        let now =
+            SystemTime::UNIX_EPOCH + Duration::from_secs(unix_at_local(2024, 1, 14, 15, 0, 0));
+        let today = vec![Entry {
+            id: "sunday".into(),
+            mode: EntryType::Timer,
+            started_at_unix: unix_at_local(2024, 1, 14, 0, 0, 0),
+            ended_at_unix: unix_at_local(2024, 1, 14, 0, 1, 0),
+            duration_secs: 60,
+        }];
+        assert_eq!(compute_totals(&today, now, WeekStart::Sunday).this_week, 60);
+
+        let saturday = vec![Entry {
+            id: "saturday".into(),
+            mode: EntryType::Timer,
+            started_at_unix: unix_at_local(2024, 1, 13, 23, 59, 0),
+            ended_at_unix: unix_at_local(2024, 1, 13, 23, 59, 30),
+            duration_secs: 30,
+        }];
+        assert_eq!(
+            compute_totals(&saturday, now, WeekStart::Sunday).this_week,
+            0
+        );
+    }
+
+    #[test]
+    fn this_week_excludes_an_entry_on_the_next_week_start() {
+        let now =
+            SystemTime::UNIX_EPOCH + Duration::from_secs(unix_at_local(2024, 1, 17, 12, 0, 0));
+        let next_monday = vec![Entry {
+            id: "next-monday".into(),
+            mode: EntryType::Timer,
+            started_at_unix: unix_at_local(2024, 1, 22, 0, 0, 0),
+            ended_at_unix: unix_at_local(2024, 1, 22, 0, 1, 0),
+            duration_secs: 60,
+        }];
+        assert_eq!(
+            compute_totals(&next_monday, now, WeekStart::Monday).this_week,
+            0
+        );
+
+        let next_sunday = vec![Entry {
+            id: "next-sunday".into(),
+            mode: EntryType::Timer,
+            started_at_unix: unix_at_local(2024, 1, 21, 0, 0, 0),
+            ended_at_unix: unix_at_local(2024, 1, 21, 0, 1, 0),
+            duration_secs: 60,
+        }];
+        assert_eq!(
+            compute_totals(&next_sunday, now, WeekStart::Sunday).this_week,
+            0
+        );
     }
 
     #[test]
@@ -574,7 +680,10 @@ mod tests {
             ended_at_unix: unix_at_local(2024, 1, 1, 0, 1, 0),
             duration_secs: 60,
         }];
-        assert_eq!(compute_totals(&on_first, now).this_month, 60);
+        assert_eq!(
+            compute_totals(&on_first, now, WeekStart::Monday).this_month,
+            60
+        );
 
         let before_first = vec![Entry {
             id: "last-day-of-december".into(),
@@ -583,7 +692,10 @@ mod tests {
             ended_at_unix: unix_at_local(2023, 12, 31, 23, 59, 30),
             duration_secs: 30,
         }];
-        assert_eq!(compute_totals(&before_first, now).this_month, 0);
+        assert_eq!(
+            compute_totals(&before_first, now, WeekStart::Monday).this_month,
+            0
+        );
     }
 
     #[test]
@@ -606,7 +718,7 @@ mod tests {
                 duration_secs: 300,
             },
         ];
-        assert_eq!(compute_totals(&entries, now).today, 600);
+        assert_eq!(compute_totals(&entries, now, WeekStart::Monday).today, 600);
     }
 
     #[test]
@@ -798,7 +910,7 @@ mod tests {
             ended_at_unix: unix_at_local(2024, 1, 17, 9, 5, 0),
             duration_secs: 300,
         }];
-        assert_eq!(compute_totals(&entries, now).today, 300);
+        assert_eq!(compute_totals(&entries, now, WeekStart::Monday).today, 300);
     }
 
     #[test]

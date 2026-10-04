@@ -9,11 +9,18 @@ import {
   SettingsGroupTitle,
 } from '@/components/settings-group'
 import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import { useDialogOverlay } from '@/features/dialog/use-dialog-overlay'
 import { ResetStatisticsDialog } from '@/features/settings/reset-statistics-dialog'
-import { api } from '@/lib/tauri'
+import { api, isWeekStart, type WeekStart } from '@/lib/tauri'
 
-export function StatisticsSection() {
+export function StatisticsSection({
+  weekStart,
+  onWeekStartChange,
+}: {
+  weekStart: WeekStart
+  onWeekStartChange: (value: WeekStart) => void
+}) {
   const {
     frame: dialogFrame,
     show: showDialog,
@@ -34,6 +41,25 @@ export function StatisticsSection() {
       <SettingsGroup>
         <SettingsGroupTitle>Statistics</SettingsGroupTitle>
         <SettingsGroupContent>
+          <SettingsGroupItem>
+            <SettingsGroupItemLabel htmlFor="week-start">
+              Week starts on
+            </SettingsGroupItemLabel>
+            <SettingsGroupItemControl>
+              <Select
+                id="week-start"
+                value={weekStart}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (isWeekStart(value)) onWeekStartChange(value)
+                }}
+                aria-label="Week starts on"
+              >
+                <option value="sunday">Sunday</option>
+                <option value="monday">Monday</option>
+              </Select>
+            </SettingsGroupItemControl>
+          </SettingsGroupItem>
           <SettingsGroupItem>
             <SettingsGroupItemLabel htmlFor="reset-statistics">
               Reset statistics

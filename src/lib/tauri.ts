@@ -31,6 +31,14 @@ export type Presets = [number | null, number | null, number | null]
 
 export type MainView = 'timer' | 'stats'
 
+export type WeekStart = 'sunday' | 'monday'
+
+export const DEFAULT_WEEK_START: WeekStart = 'monday'
+
+export function isWeekStart(value: string): value is WeekStart {
+  return value === 'sunday' || value === 'monday'
+}
+
 export interface Settings {
   hideWindowOnStart: boolean
   pauseOnSleep: boolean
@@ -46,6 +54,7 @@ export interface Settings {
   sessionsUntilLongBreak: number
   autoStartSessions: boolean
   autoStartBreaks: boolean
+  weekStart: WeekStart
 }
 
 /** Sentinel for disabling the completion sound (first option in the select). */

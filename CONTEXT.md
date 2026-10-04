@@ -3,11 +3,11 @@
 A macOS menu bar timer. Running time is recorded as focused time the user can review in Stats, except Breaks.
 
 **Entry**:
-One contiguous stretch of focused time, bounded by a start and an end. A new or corrected Entry belongs to exactly one Calendar day. It is either **recorded** from a Start or Resume until Pause, Save of a running Interval, or natural completion, or **created** from Stats as a Manual entry.
+One contiguous stretch of focused time, bounded by a start and an end. A new or corrected Entry belongs to exactly one Calendar day. It is either **recorded** from a Start or Resume until Pause, Save of a running Interval, or natural completion, or **created** from Stats as a Manual entry. Persisted Entries are oldest-first by start, then by end. A new or corrected Entry is placed by start, not by when it was saved.
 
 Accidental recorded taps of 10 seconds or less are not recorded. A Manual entry is a draft until Save; the 10-second skip does not apply to create or to later corrections. After an Entry exists, start and end can be corrected (any duration is allowed as long as end is after start); a correction that would cross local midnight is a Midnight split — the existing Entry becomes the earliest piece, later pieces are new, Type is copied onto every piece. Type cannot be changed otherwise. An Entry can be deleted. All Entries can be deleted at once from Statistics. Resuming always begins a new Entry.
 
-_Avoid: calling an Entry a Session. Log. Do not treat the 10-second skip as an invariant of a persisted Entry._
+_Avoid: calling an Entry a Session. Log. Do not treat the 10-second skip as an invariant of a persisted Entry. Do not treat last-saved as newest._
 
 **Interval**:
 The engine's in-flight stretch of running time, from the most recent Start or Resume until the next Pause, Save, Discard, Skip, or natural completion. An Interval is not persisted; when it ends it may produce an Entry (subject to the 10-second skip). A Break Interval never produces an Entry. Only one Interval can exist at a time, and only while the engine status is `running`.
@@ -15,9 +15,9 @@ The engine's in-flight stretch of running time, from the most recent Start or Re
 _Avoid: using "interval" and "entry" interchangeably. An Interval is ephemeral; an Entry is persisted._
 
 **Active interval**:
-The currently running Interval, if any (`status === running`). Its elapsed time is `intervalElapsedSecs` from the snapshot. Stats can incorporate the active interval into totals and the entries list as a temporary, non-persisted "running" entry, except when the Interval is a Break. When the Interval ends (pause, save, completion, discard, or Skip) the active interval vanishes and may be replaced by a recorded Entry. A Midnight split records the earlier piece and the active interval continues from that midnight, except during a Break, which is not recorded.
+The currently running Interval, if any (`status === running`). Its elapsed time is `intervalElapsedSecs` from the snapshot. Stats can incorporate the active interval into totals and the entries list as a temporary, non-persisted "running" entry, except when the Interval is a Break. In the Entries list it is pinned to the top of its Calendar day. When the Interval ends (pause, save, completion, discard, or Skip) the active interval vanishes and may be replaced by a recorded Entry. A Midnight split records the earlier piece and the active interval continues from that midnight, except during a Break, which is not recorded.
 
-_Avoid: treating a paused engine as having an active interval — pause finalizes the Interval._
+_Avoid: treating a paused engine as having an active interval — pause finalizes the Interval. Do not insert the running row by start among persisted Entries. Do not prepend it to the whole list._
 
 **Discard**:
 Ending a running Interval without recording an Entry. The engine returns to Idle.
@@ -80,12 +80,12 @@ An Entry created from Stats rather than from a finished interval. Not persisted 
 The sum of Entry durations, regardless of type (Timer, Stopwatch, Pomodoro, or Manual). Breaks are not Entries and are not included.
 
 **Stats**:
-The window where focused time is reviewed: Dashboard totals and the Entries list.
-_Avoid: Statistics for this window._
+The window where focused time is reviewed: Dashboard totals and the Entries list. The Entries list is newest-first by start, grouped by Calendar day.
+_Avoid: Statistics for this window. Do not treat last-saved as newest._
 
 **Period**:
-This week (the default), This month, or This year. The Entries list shows only Entries whose Calendar day falls in the selected Period; This year is first the last three calendar months (clipped to 1 Jan), then extended backward three calendar months at a time, and earlier years are not listed.
-_Avoid: all, all time, range. Dashboard totals are not a Period — they include Today and have no year._
+This week (the default), This month, or This year. The Entries list shows only Entries whose Calendar day falls in the selected Period; This week is the seven Calendar days from the current Week start. This year is first the last three calendar months (clipped to 1 Jan), then extended backward three calendar months at a time, and earlier years are not listed.
+_Avoid: all, all time, range. Dashboard totals are not a Period — they include Today and have no year. Do not treat This week as a Monday–Sunday ISO week._
 
 **Settings**:
 The separate preferences window, with tabs General, Timer, Pomodoro, Notifications, Shortcuts, and About. Closing it hides the window; it stays mounted until quit.
@@ -98,8 +98,12 @@ The sound played when a Timer Interval, Session, or Break completes naturally. C
 _Avoid: alert, notification sound, chime. Not the notification banner._
 
 **Statistics**:
-The General Settings group whose action is Reset statistics.
+The General Settings group for Week start and Reset statistics.
 _Avoid: using Statistics as the name of the Stats window._
+
+**Week start**:
+The weekday a week begins on: Sunday or Monday. Chosen in Statistics. Default Monday. Dashboard This Week and Period This week are the seven local Calendar days from that weekday's midnight; changing Week start redefines This week immediately and does not rewrite Entries.
+_Avoid: ISO week, locale first weekday, week starts on as a second concept._
 
 **Reset statistics**:
 Deleting every persisted Entry after confirmation. An active Interval is left running. Settings, presets, shortcuts, and the engine are left alone. The action stays available even when there are no Entries.

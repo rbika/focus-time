@@ -221,7 +221,10 @@ export function SettingsView() {
             </SettingsGroupContent>
           </SettingsGroup>
 
-          <StatisticsSection />
+          <StatisticsSection
+            weekStart={settings.weekStart}
+            onWeekStartChange={(value) => update('weekStart', value)}
+          />
 
           <SettingsGroup>
             <SettingsGroupTitle>Updates</SettingsGroupTitle>

@@ -1,4 +1,4 @@
-import type { Entry } from '@/lib/tauri'
+import type { Entry, WeekStart } from '@/lib/tauri'
 
 export type Period = 'this-week' | 'this-month' | 'this-year'
 
@@ -23,13 +23,14 @@ function startOfLocalDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
-function startOfWeekMonday(now: Date): Date {
+function startOfWeek(now: Date, weekStart: WeekStart): Date {
   const today = startOfLocalDay(now)
-  const daysSinceMonday = (today.getDay() + 6) % 7
+  const daysSinceStart =
+    weekStart === 'sunday' ? today.getDay() : (today.getDay() + 6) % 7
   return new Date(
     today.getFullYear(),
     today.getMonth(),
-    today.getDate() - daysSinceMonday,
+    today.getDate() - daysSinceStart,
   )
 }
 
@@ -41,9 +42,10 @@ function periodBounds(
   period: Period,
   now: Date,
   yearRevealSteps: number,
+  weekStart: WeekStart,
 ): { start: Date; end: Date } {
   if (period === 'this-week') {
-    const start = startOfWeekMonday(now)
+    const start = startOfWeek(now, weekStart)
     return {
       start,
       end: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7),
@@ -70,8 +72,9 @@ export function visiblePeriodEntries(
   period: Period,
   now: Date,
   yearRevealSteps: number,
+  weekStart: WeekStart,
 ): PeriodView {
-  const { start, end } = periodBounds(period, now, yearRevealSteps)
+  const { start, end } = periodBounds(period, now, yearRevealSteps, weekStart)
   const startUnix = unixSecs(start)
   const endUnix = unixSecs(end)
   const visible = entries.filter(

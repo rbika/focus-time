@@ -34,11 +34,14 @@ pub fn get_snapshot(app: AppHandle) -> TimerSnapshot {
 
 #[tauri::command]
 pub fn get_totals(app: AppHandle) -> crate::entries::Totals {
-    app.state::<AppState>()
+    let state = app.state::<AppState>();
+    let week_start = state.settings.lock().expect("settings lock").week_start;
+    let totals = state
         .entries
         .lock()
         .expect("entries lock")
-        .totals(SystemTime::now())
+        .totals(SystemTime::now(), week_start);
+    totals
 }
 
 #[tauri::command]
@@ -137,6 +140,7 @@ pub fn update_settings(app: AppHandle, settings: Settings) -> Result<Settings, S
             ),
             auto_start_sessions: settings.auto_start_sessions,
             auto_start_breaks: settings.auto_start_breaks,
+            week_start: settings.week_start,
         };
         let config = current.pomodoro_config();
         drop(current);
