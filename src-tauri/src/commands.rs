@@ -121,8 +121,9 @@ pub fn get_settings(app: AppHandle) -> Settings {
 pub fn update_settings(app: AppHandle, settings: Settings) -> Result<Settings, String> {
     let state = app.state::<AppState>();
 
-    {
+    let notifications_just_enabled = {
         let mut current = state.settings.lock().expect("settings lock");
+        let was_enabled = current.notifications_enabled;
         *current = Settings {
             hide_window_on_start: settings.hide_window_on_start,
             pause_on_sleep: settings.pause_on_sleep,
@@ -146,7 +147,8 @@ pub fn update_settings(app: AppHandle, settings: Settings) -> Result<Settings, S
         drop(current);
         let mut engine = state.engine.lock().expect("engine lock");
         engine.apply_idle_pomodoro_config(&config);
-    }
+        settings.notifications_enabled && !was_enabled
+    };
 
     // Autostart
     let autostart = app.autolaunch();
@@ -157,6 +159,9 @@ pub fn update_settings(app: AppHandle, settings: Settings) -> Result<Settings, S
     }
 
     state.persist()?;
+    if notifications_just_enabled {
+        crate::notification::request_authorization();
+    }
     let saved = state.settings.lock().expect("settings lock").clone();
     let _ = app.emit("settings-changed", &saved);
 

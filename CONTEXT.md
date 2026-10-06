@@ -79,9 +79,14 @@ An Entry created from Stats rather than from a finished interval. Not persisted 
 **Focused time**:
 The sum of Entry durations, regardless of type (Timer, Stopwatch, Pomodoro, or Manual). Breaks are not Entries and are not included.
 
+**Timer window**:
+The window opened and hidden by a tray left-click. It shows Timer or Stats; last view is kept across hide/show. Settings and the Update progress window are separate windows. A Notification click always shows and focuses this window and does not change the view — it never toggles hide, never closes siblings, and never moves focus into them. A leftover banner after quit relaunches the app and opens this window the same way.
+
+_Avoid: main window. Do not treat Stats as its own window. Do not treat a Notification click as Show Timer (⌘1) or as a tray toggle._
+
 **Stats**:
-The window where focused time is reviewed: Dashboard totals and the Entries list. The Entries list is newest-first by start, grouped by Calendar day.
-_Avoid: Statistics for this window. Do not treat last-saved as newest._
+The view in the Timer window where focused time is reviewed: Dashboard totals and the Entries list. The Entries list is newest-first by start, grouped by Calendar day.
+_Avoid: Statistics for this view. Do not treat last-saved as newest. Do not treat Stats as a separate window._
 
 **Period**:
 This week (the default), This month, or This year. The Entries list shows only Entries whose Calendar day falls in the selected Period; This week is the seven Calendar days from the current Week start. This year is first the last three calendar months (clipped to 1 Jan), then extended backward three calendar months at a time, and earlier years are not listed.
@@ -90,7 +95,7 @@ _Avoid: all, all time, range. Dashboard totals are not a Period — they include
 **Settings**:
 The separate preferences window, with tabs General, Timer, Pomodoro, Notifications, Shortcuts, and About. Closing it hides the window; it stays mounted until quit.
 
-_Avoid: Settings view. Do not treat Settings as a view inside the main window. Statistics is a group on General, not this window. Stats is the focused-time review surface._
+_Avoid: Settings view. Do not treat Settings as a view inside the Timer window. Statistics is a group on General, not this window. Stats is the focused-time review surface._
 
 **Update progress window**:
 The window shown after Install update from the available sheet. It has four screens: Downloading (progress and Cancel; Cancel stays visible but disabled while the bar finishes filling), Ready to install (Later / Install and restart), Install failed, and Error (OK). The icon is shared; each screen swaps title, body, and a caption | actions row in one column beside it. Downloading puts bytes and Cancel on that row. Ready to install, Install failed, and Error leave the caption empty so actions sit alone — Error's message is the body, like Install failed. All four screens are the same size. Other update statuses do not show this window.
@@ -102,6 +107,11 @@ The Update progress window screen after Install and restart fails. The downloade
 
 _Avoid: Error (that is a failed check or download). Ready to restart as a user-facing name._
 
+**Notification**:
+The native macOS banner shown when a Timer Interval, Session, or Break completes naturally, if Allow notifications is on. Clicking one — including a leftover banner after quit — opens the Timer window. The banner has no action buttons. Clicks only work when the app runs from a `.app` bundle; under `tauri dev` the banner still shows but a click does nothing.
+
+_Avoid: Completion sound. Do not treat a click as Show Timer (⌘1) or as a tray toggle._
+
 **Completion sound**:
 The sound played when a Timer Interval, Session, or Break completes naturally. Chosen in Settings → Notifications. None plays nothing.
 
@@ -109,7 +119,7 @@ _Avoid: alert, notification sound, chime. Not the notification banner._
 
 **Statistics**:
 The General Settings group for Week start and Reset statistics.
-_Avoid: using Statistics as the name of the Stats window._
+_Avoid: using Statistics as the name of the Stats view._
 
 **Week start**:
 The weekday a week begins on: Sunday or Monday. Chosen in Statistics. Default Monday. Dashboard This Week and Period This week are the seven local Calendar days from that weekday's midnight; changing Week start redefines This week immediately and does not rewrite Entries.

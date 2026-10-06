@@ -108,6 +108,7 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 window::apply_dev_always_on_top(&window);
             }
+            notification::install(app.handle());
             start_tick_loop(app.handle().clone());
             updater::start_background_checks(app.handle().clone());
 
