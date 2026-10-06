@@ -6,7 +6,7 @@ pub fn show_timer_finished(app: &AppHandle) {
     let _ = app
         .notification()
         .builder()
-        .title("Focus Timer")
+        .title("Focus Time")
         .body("Your focus session has finished.")
         .show();
 }
@@ -16,7 +16,7 @@ pub fn show_break_finished(app: &AppHandle) {
     let _ = app
         .notification()
         .builder()
-        .title("Focus Timer")
+        .title("Focus Time")
         .body("Your break has finished.")
         .show();
 }

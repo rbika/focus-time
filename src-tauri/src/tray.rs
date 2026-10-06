@@ -48,7 +48,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .icon(icon)
         .icon_as_template(true)
         .title(initial_title)
-        .tooltip("Focus Timer")
+        .tooltip("Focus Time")
         .on_menu_event(|app, event| {
             handle_menu_event(app, event.id().as_ref());
         })
@@ -323,7 +323,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         MenuItem::with_id(app, "toggle_icon_only", icon_only_label, true, None::<&str>)?;
 
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Focus Timer", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Focus Time", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
 
     Menu::with_items(

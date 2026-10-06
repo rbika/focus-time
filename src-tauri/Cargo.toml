@@ -1,12 +1,12 @@
 [package]
-name = "focus-timer"
+name = "focus-time"
 version = "1.15.0"
-description = "Native macOS menu bar focus timer"
+description = "Native macOS menu bar focus time"
 authors = ["rbika"]
 edition = "2021"
 
 [lib]
-name = "focus_timer_lib"
+name = "focus_time_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

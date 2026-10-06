@@ -8,7 +8,7 @@ import { api } from '@/lib/tauri'
 import appIcon from '../../../src-tauri/icons/128x128.png'
 
 export function UpToDateView() {
-  const [appName, setAppName] = useState('Focus Timer')
+  const [appName, setAppName] = useState('Focus Time')
   const [version, setVersion] = useState('')
 
   useEffect(() => {

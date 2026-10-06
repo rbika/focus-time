@@ -30,7 +30,7 @@ import {
 import { useTimerStore } from '@/store/timer-store'
 import appIcon from '../../../src-tauri/icons/128x128@2x.png'
 
-const REPO_URL = 'https://github.com/rbika/focus-timer'
+const REPO_URL = 'https://github.com/rbika/focus-time'
 
 const PRESET_LABELS = ['Preset 1', 'Preset 2', 'Preset 3'] as const
 
@@ -55,7 +55,7 @@ export function SettingsView() {
   const settings = useTimerStore((s) => s.settings)
   const saveSettings = useTimerStore((s) => s.actions.saveSettings)
   const [sounds, setSounds] = useState<string[]>([])
-  const [appName, setAppName] = useState('Focus Timer')
+  const [appName, setAppName] = useState('Focus Time')
   const [appVersion, setAppVersion] = useState('')
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({
     kind: 'idle',
@@ -543,7 +543,7 @@ export function SettingsView() {
             </div>
 
             <p className="mt-6 text-xs text-neutral-400 dark:text-neutral-500">
-              Focus Timer is free and open-source.
+              Focus Time is free and open-source.
             </p>
             <p>
               <a

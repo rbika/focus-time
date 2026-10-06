@@ -1,14 +1,14 @@
-# Focus Timer
+# Focus Time
 
-macOS menu bar countdown timer.
+A macOS menu bar app designed to help you stay focused and track your work. Includes a countdown timer, stopwatch, and Pomodoro mode.
 
 Requires **macOS 26 (Tahoe)** or newer.
 
-![Screenshot of Focus Timer](./screenshots/focus-timer.png)
+![Screenshot of Focus Time](./screenshots/focus-time.png)
 
 ## Features
 
-- Menu bar countdown timer and stopwatch.
+- Menu bar countdown timer, stopwatch, and Pomodoro.
 - Light and dark mode.
 - Timer state preserved across app restarts.
 - Pause when your Mac sleeps.
@@ -17,11 +17,11 @@ Requires **macOS 26 (Tahoe)** or newer.
 
 ## Installation instructions
 
-1. Download the latest `.dmg` file from [Github Releases page](https://github.com/rbika/focus-timer/releases).
+1. Download the latest `.dmg` file from [Github Releases page](https://github.com/rbika/focus-time/releases).
 2. Open and move the app into Applications folder.
 3. Run the following command in the terminal to remove quarantine flag:
    ```shell
-   xattr -cr /Applications/Focus\ Timer.app
+   xattr -cr /Applications/Focus\ Time.app
    ```
 
 ## Develop

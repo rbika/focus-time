@@ -1,4 +1,4 @@
-# Focus Timer
+# Focus Time
 
 A macOS menu bar timer. Running time is recorded as focused time the user can review in Stats, except Breaks.
 

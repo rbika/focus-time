@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Focus Timer",
-  "identifier": "com.rbika.focus-timer",
+  "productName": "Focus Time",
+  "identifier": "com.rbika.focus-time",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Focus Timer",
+        "title": "Focus Time",
         "width": 290,
         "height": 230,
         "resizable": false,
@@ -45,7 +45,7 @@
       },
       {
         "label": "up-to-date",
-        "title": "Focus Timer",
+        "title": "Focus Time",
         "width": 260,
         "height": 280,
         "resizable": false,
@@ -61,7 +61,7 @@
       },
       {
         "label": "update-available",
-        "title": "Focus Timer",
+        "title": "Focus Time",
         "width": 680,
         "height": 400,
         "resizable": false,
@@ -77,7 +77,7 @@
       },
       {
         "label": "update-progress",
-        "title": "Focus Timer",
+        "title": "Focus Time",
         "width": 400,
         "height": 148,
         "resizable": false,
@@ -121,7 +121,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIzOUNENDQ2RjI3OEQ5MTIKUldRUzJYanlSdFNjczM0TXlnazEydWpwRXpQM3lmd0FnbmdkUEdnZ29ESDBTMG0zbFhFV2lUU2QK",
       "endpoints": [
-        "https://github.com/rbika/focus-timer/releases/latest/download/latest.json"
+        "https://github.com/rbika/focus-time/releases/latest/download/latest.json"
       ]
     }
   }

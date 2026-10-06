@@ -77,9 +77,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: Focus Timer ${{ github.ref_name }}
+          releaseName: Focus Time ${{ github.ref_name }}
           releaseBody: ${{ steps.changelog.outputs.body }}
           prerelease: false
           uploadUpdaterJson: true
-          releaseAssetNamePattern: 'Focus Timer [version] [arch][ext]'
+          releaseAssetNamePattern: 'Focus Time [version] [arch][ext]'
           args: --target aarch64-apple-darwin

@@ -9,7 +9,7 @@ import { api, onUpdateStatus, type UpdateStatus } from '@/lib/tauri'
 import appIcon from '../../../src-tauri/icons/128x128.png'
 
 export function UpdateAvailableView() {
-  const [appName, setAppName] = useState('Focus Timer')
+  const [appName, setAppName] = useState('Focus Time')
   const [currentVersion, setCurrentVersion] = useState('')
   const [status, setStatus] = useState<UpdateStatus>({ kind: 'idle' })
   const [busy, setBusy] = useState(false)

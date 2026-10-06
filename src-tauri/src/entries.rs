@@ -349,7 +349,7 @@ mod tests {
 
     fn temp_dir(label: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
-            "focus-timer-entries-test-{label}-{}",
+            "focus-time-entries-test-{label}-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()

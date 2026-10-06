@@ -375,7 +375,7 @@ mod tests {
     #[test]
     fn roundtrip_paused_state() {
         let dir = std::env::temp_dir().join(format!(
-            "focus-timer-test-{}",
+            "focus-time-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn legacy_sound_enabled_false_migrates_to_none() {
         let dir = std::env::temp_dir().join(format!(
-            "focus-timer-sound-migrate-{}",
+            "focus-time-sound-migrate-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -526,7 +526,7 @@ mod tests {
     #[test]
     fn legacy_state_without_mode_loads_as_timer() {
         let dir = std::env::temp_dir().join(format!(
-            "focus-timer-mode-migrate-{}",
+            "focus-time-mode-migrate-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn stopwatch_state_roundtrip() {
         let dir = std::env::temp_dir().join(format!(
-            "focus-timer-stopwatch-test-{}",
+            "focus-time-stopwatch-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -607,7 +607,7 @@ mod tests {
     #[test]
     fn running_stopwatch_roundtrip_keeps_post_midnight_interval() {
         let dir = std::env::temp_dir().join(format!(
-            "focus-timer-stopwatch-midnight-{}",
+            "focus-time-stopwatch-midnight-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -639,7 +639,7 @@ mod tests {
     #[test]
     fn pomodoro_cycle_roundtrip() {
         let dir = std::env::temp_dir().join(format!(
-            "focus-timer-pomodoro-test-{}",
+            "focus-time-pomodoro-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -673,7 +673,7 @@ mod tests {
     #[test]
     fn pomodoro_waiting_roundtrip() {
         let dir = std::env::temp_dir().join(format!(
-            "focus-timer-waiting-test-{}",
+            "focus-time-waiting-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -708,7 +708,7 @@ mod tests {
     #[test]
     fn pomodoro_session_completed_while_quit_records_and_is_waiting() {
         let dir = std::env::temp_dir().join(format!(
-            "focus-timer-quit-complete-{}",
+            "focus-time-quit-complete-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()

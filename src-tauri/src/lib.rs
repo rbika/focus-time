@@ -84,7 +84,7 @@ pub fn run() {
             let data_dir = app
                 .path()
                 .app_data_dir()
-                .unwrap_or_else(|_| PathBuf::from(".").join("focus-timer-data"));
+                .unwrap_or_else(|_| PathBuf::from(".").join("focus-time-data"));
             let persistence = Persistence::new(data_dir.clone());
             let entries = entries::EntriesStore::new(data_dir);
             let (settings, engine, main_window_position, updater_meta, finished) =
@@ -133,7 +133,7 @@ pub fn run() {
             _ => {}
         })
         .run(tauri::generate_context!())
-        .expect("error while running Focus Timer");
+        .expect("error while running Focus Time");
 }
 
 /// Load `.env.local` then `.env` from the project root (debug only).
