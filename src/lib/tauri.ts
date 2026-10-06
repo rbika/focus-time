@@ -122,8 +122,6 @@ export const api = {
   dismissAvailableUpdate: () => invoke<void>('dismiss_available_update'),
   cancelUpdateDownload: () => invoke<void>('cancel_update_download'),
   dismissUpdateProgress: () => invoke<void>('dismiss_update_progress'),
-  previewUpdateProgress: (status: UpdateStatus, installFailed = false) =>
-    invoke<void>('preview_update_progress', { status, installFailed }),
   installAndRestart: () => invoke<void>('install_and_restart'),
   getAppName: () => getName(),
   getAppVersion: () => getVersion(),
@@ -168,14 +166,5 @@ export function onUpdateStatus(
 ): Promise<UnlistenFn> {
   return listen<UpdateStatus>('update-status', (event) =>
     handler(event.payload),
-  )
-}
-
-export function onUpdateProgressPreview(
-  handler: (payload: { installFailed: boolean }) => void,
-): Promise<UnlistenFn> {
-  return listen<{ installFailed: boolean }>(
-    'update-progress-preview',
-    (event) => handler(event.payload),
   )
 }

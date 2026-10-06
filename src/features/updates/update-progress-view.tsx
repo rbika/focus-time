@@ -6,12 +6,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { Button } from '@/components/ui/button'
 import { WindowTitleBar } from '@/components/window-title-bar'
 import { formatDownloadProgress } from '@/features/updates/format-bytes'
-import {
-  api,
-  onUpdateProgressPreview,
-  onUpdateStatus,
-  type UpdateStatus,
-} from '@/lib/tauri'
+import { api, onUpdateStatus, type UpdateStatus } from '@/lib/tauri'
 import appIcon from '../../../src-tauri/icons/128x128.png'
 
 const PROGRESS_WINDOW_WIDTH = 400
@@ -202,19 +197,6 @@ export function UpdateProgressView() {
   useEffect(() => {
     let unlisten: (() => void) | undefined
     void onUpdateStatus(setStatus).then((fn) => {
-      unlisten = fn
-    })
-    return () => {
-      unlisten?.()
-    }
-  }, [])
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    void onUpdateProgressPreview((preview) => {
-      setInstallFailed(preview.installFailed)
-      setInstallRequested(false)
-    }).then((fn) => {
       unlisten = fn
     })
     return () => {
