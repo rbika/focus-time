@@ -231,15 +231,14 @@ async fn install_available_update_inner(
     let update = match updater.check().await {
         Ok(Some(fresh)) if fresh.version == expected_version => fresh,
         Ok(Some(fresh)) => {
-            let status = UpdateStatus::Error {
-                message: format!(
+            return finish_error(
+                &app,
+                format!(
                     "Update changed from {expected_version} to {}. Check again.",
                     fresh.version
                 ),
-                manual: true,
-            };
-            set_status(&app, status.clone());
-            return Ok(status);
+                true,
+            );
         }
         Ok(None) => {
             hide_update_available_window(&app);
@@ -298,8 +297,6 @@ async fn install_available_update_inner(
             if download_was_cancelled(&app) {
                 return Ok(current_status(&app));
             }
-            hide_update_progress_window(&app);
-            show_update_available_window(&app);
             return finish_error(&app, err.to_string(), true);
         }
     };
@@ -332,10 +329,21 @@ pub fn cancel_update_download(app: &AppHandle) {
 pub fn dismiss_update_progress(app: &AppHandle) {
     let status = current_status(app);
     hide_update_progress_window(app);
-    if matches!(status, UpdateStatus::Error { .. }) {
-        clear_downloaded_update(app);
+    if !matches!(status, UpdateStatus::Error { .. }) {
+        return;
+    }
+    clear_downloaded_update(app);
+    let had_pending = app
+        .state::<AppState>()
+        .pending_update
+        .lock()
+        .expect("pending update lock")
+        .is_some();
+    if had_pending {
         restore_available_update(app);
         show_update_available_window(app);
+    } else {
+        set_status(app, UpdateStatus::Idle);
     }
 }
 
@@ -398,6 +406,10 @@ pub async fn install_and_restart(app: AppHandle) -> Result<(), String> {
 
 pub fn dismiss_available_update(app: &AppHandle) {
     hide_update_available_window(app);
+    *app.state::<AppState>()
+        .pending_update
+        .lock()
+        .expect("pending update lock") = None;
     set_status(app, UpdateStatus::Cancelled);
 }
 
@@ -416,8 +428,8 @@ fn finish_error(app: &AppHandle, message: String, manual: bool) -> Result<Update
     };
     set_status(app, status.clone());
     if manual {
-        hide_update_progress_window(app);
-        show_update_available_window(app);
+        hide_update_available_window(app);
+        show_update_progress_window(app);
         Err(message)
     } else {
         Ok(status)

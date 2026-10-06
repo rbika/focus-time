@@ -35,7 +35,8 @@ export function UpdateAvailableView() {
       status.kind === 'downloading' ||
       status.kind === 'readyToRestart' ||
       status.kind === 'cancelled' ||
-      status.kind === 'upToDate'
+      status.kind === 'upToDate' ||
+      status.kind === 'error'
     ) {
       void getCurrentWebviewWindow().hide()
     }
@@ -55,8 +56,6 @@ export function UpdateAvailableView() {
 
   const latestVersion = status.kind === 'available' ? status.version : null
   const notes = status.kind === 'available' ? status.notes : null
-  const error =
-    status.kind === 'error' ? 'Update failed. Please try again later.' : null
 
   return (
     <div className="flex h-full flex-col">
@@ -87,45 +86,28 @@ export function UpdateAvailableView() {
           </div>
         </div>
 
-        {error ? (
-          <p className="text-[13px] leading-5 text-neutral-700 dark:text-neutral-300">
-            {error}
-          </p>
-        ) : (
-          <ReleaseNotes content={notes} version={latestVersion} />
-        )}
+        <ReleaseNotes content={notes} version={latestVersion} />
         <div className="mt-auto flex justify-end gap-2">
-          {error ? (
-            <Button
-              className="h-7 w-full rounded-full bg-[#007aff] px-4 py-2 text-sm hover:bg-[#006ee6] dark:bg-[#0a84ff] dark:text-white"
-              onClick={() => void api.dismissAvailableUpdate()}
-            >
-              OK
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="secondary"
-                className="h-7 rounded-full px-4 py-2 text-sm"
-                disabled={busy}
-                onClick={() => void api.dismissAvailableUpdate()}
-              >
-                Remind me later
-              </Button>
-              <Button
-                className="h-7 rounded-full bg-[#007aff] px-4 py-2 text-sm hover:bg-[#006ee6] dark:bg-[#0a84ff] dark:text-white"
-                disabled={busy}
-                onClick={() => {
-                  setBusy(true)
-                  void api.installAvailableUpdate().finally(() => {
-                    setBusy(false)
-                  })
-                }}
-              >
-                Install update
-              </Button>
-            </>
-          )}
+          <Button
+            variant="secondary"
+            className="h-7 rounded-full px-4 py-2 text-sm"
+            disabled={busy}
+            onClick={() => void api.dismissAvailableUpdate()}
+          >
+            Remind me later
+          </Button>
+          <Button
+            className="h-7 rounded-full bg-[#007aff] px-4 py-2 text-sm hover:bg-[#006ee6] dark:bg-[#0a84ff] dark:text-white"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true)
+              void api.installAvailableUpdate().finally(() => {
+                setBusy(false)
+              })
+            }}
+          >
+            Install update
+          </Button>
         </div>
       </main>
     </div>
