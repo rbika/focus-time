@@ -366,7 +366,7 @@ export function TimerView({ active }: { active: boolean }) {
 
               <div
                 className={cn(
-                  'mb-2 flex w-full flex-col items-center gap-3 text-xs text-neutral-500 transition-opacity duration-200 dark:text-neutral-400',
+                  'mb-2 flex w-full flex-col items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400',
                   isPaused && 'opacity-60',
                 )}
                 aria-live="polite"
@@ -379,7 +379,10 @@ export function TimerView({ active }: { active: boolean }) {
                       running={isRunning}
                     />
                     <div className="flex w-full items-center justify-center gap-2">
-                      <span className="flex w-20 items-center justify-center gap-1 text-left">
+                      <span
+                        key={isRunning ? 'ends-at' : 'ends-at-none'}
+                        className="flex w-20 items-center justify-center gap-1 text-left"
+                      >
                         <BellIcon className="mt-px h-3 w-3" aria-hidden />{' '}
                         {endsAt}
                       </span>

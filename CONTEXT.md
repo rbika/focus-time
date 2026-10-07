@@ -19,6 +19,11 @@ The currently running Interval, if any (`status === running`). Its elapsed time 
 
 _Avoid: treating a paused engine as having an active interval — pause finalizes the Interval. Do not insert the running row by start among persisted Entries. Do not prepend it to the whole list._
 
+**Ends at**:
+The local clock time the current countdown Interval will complete. Shown on the running view while the engine status is `running`. While paused or Waiting, the same readout is `--:--` — there is no Ends at until Resume or Start. Stopwatch has no Ends at.
+
+_Avoid: end time (that is an Entry's end). Deadline. Do not treat a paused or Waiting countdown as having an Ends at. Do not show it on Stopwatch._
+
 **Discard**:
 Ending a running Interval without recording an Entry. The engine returns to Idle.
 
