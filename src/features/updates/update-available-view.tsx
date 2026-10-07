@@ -86,7 +86,7 @@ export function UpdateAvailableView() {
           </div>
         </div>
 
-        <ReleaseNotes content={notes} version={latestVersion} />
+        <ReleaseNotes content={notes} />
         <div className="mt-auto flex justify-end gap-2">
           <Button
             variant="secondary"

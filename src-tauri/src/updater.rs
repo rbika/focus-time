@@ -162,10 +162,17 @@ async fn run_check_inner(app: AppHandle, manual: bool) -> Result<UpdateStatus, S
     };
 
     let version = update.version.clone();
-    let notes = update.body.clone();
+    let latest_body = update.body.clone();
+    let changelog = fetch_changelog(&version).await;
+    let notes = crate::release_notes::release_notes_for_available_update(
+        changelog.as_deref(),
+        env!("CARGO_PKG_VERSION"),
+        &version,
+        latest_body.as_deref(),
+    );
     let status = UpdateStatus::Available {
         version: version.clone(),
-        notes: notes.clone(),
+        notes,
     };
     set_status(&app, status.clone());
     show_update_available_window(&app);
@@ -568,6 +575,23 @@ fn clear_downloaded_update(app: &AppHandle) {
         .downloaded_update
         .lock()
         .expect("downloaded update lock") = None;
+}
+
+const CHANGELOG_FETCH_TIMEOUT: Duration = Duration::from_secs(10);
+
+async fn fetch_changelog(version: &str) -> Option<String> {
+    let version = version.trim().trim_start_matches(['v', 'V']);
+    let url = format!("https://raw.githubusercontent.com/rbika/focus-time/v{version}/CHANGELOG.md");
+    let client = reqwest::Client::builder()
+        .timeout(CHANGELOG_FETCH_TIMEOUT)
+        .user_agent("Focus-Time")
+        .build()
+        .ok()?;
+    let response = client.get(url).send().await.ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    response.text().await.ok()
 }
 
 fn unix_now() -> u64 {

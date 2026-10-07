@@ -4,6 +4,7 @@ mod commands;
 mod entries;
 mod notification;
 mod persistence;
+mod release_notes;
 mod sleep;
 mod sound;
 mod timer;

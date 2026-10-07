@@ -2,34 +2,15 @@ import Markdown from 'react-markdown'
 
 const textClass = 'text-[13px] leading-5 text-neutral-700 dark:text-neutral-300'
 
-function versionHeading(version?: string | null): string | null {
-  const trimmed = version?.trim()
-  if (!trimmed) {
-    return null
-  }
-
-  const label = /^v/i.test(trimmed) ? trimmed : `v${trimmed}`
-  return `## ${label}`
-}
-
-export function ReleaseNotes({
-  content,
-  version,
-}: {
-  content?: string | null
-  version?: string | null
-}) {
+export function ReleaseNotes({ content }: { content?: string | null }) {
   const trimmed = content?.trim()
   if (!trimmed) {
     return <p className={textClass}>No release notes provided.</p>
   }
 
-  const heading = versionHeading(version)
-  const markdown = heading ? `${heading}\n\n${trimmed}` : trimmed
-
   return (
     <div
-      className={`my-2 h-full max-h-52 overflow-y-auto overscroll-none rounded-md border border-neutral-200 p-3 dark:border-neutral-700 ${textClass} [&_h2+h3]:mt-2 [&_h3+ul]:mt-1 [&_p+p]:mt-2 [&_ul+p]:mt-2`}
+      className={`my-2 h-full max-h-52 overflow-y-auto overscroll-none rounded-md border border-neutral-200 p-3 dark:border-neutral-700 ${textClass} [&_h2+h3]:mt-2 [&_h2:not(:first-child)]:mt-3 [&_h3+ul]:mt-1 [&_p+p]:mt-2 [&_ul+p]:mt-2`}
     >
       <Markdown
         components={{
@@ -75,7 +56,7 @@ export function ReleaseNotes({
           ),
         }}
       >
-        {markdown}
+        {trimmed}
       </Markdown>
     </div>
   )

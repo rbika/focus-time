@@ -97,8 +97,18 @@ The separate preferences window, with tabs General, Timer, Pomodoro, Notificatio
 
 _Avoid: Settings view. Do not treat Settings as a view inside the Timer window. Statistics is a group on General, not this window. Stats is the focused-time review surface._
 
+**Available sheet**:
+The window shown when a newer version exists. It names the latest version, the installed version, and the Release notes. Longer notes scroll; the window does not grow.
+
+_Avoid: update available view, update dialog. Do not treat this as the Update progress window or the up-to-date sheet. Do not grow the window._
+
+**Release notes**:
+The changelog sections shown in the Available sheet, one per published version newer than the installed version, newest first. A version with no notes is omitted. If none remain, a single fallback line is shown.
+
+_Avoid: changelog as the UI name. Do not show the installed version or older. Do not treat the latest version's notes as the full set. Do not insert empty version headings._
+
 **Update progress window**:
-The window shown after Install update from the available sheet. It has four screens: Downloading (progress and Cancel; Cancel stays visible but disabled while the bar finishes filling), Ready to install (Later / Install and restart), Install failed, and Error (OK). The icon is shared; each screen swaps title, body, and a caption | actions row in one column beside it. Downloading puts bytes and Cancel on that row. Ready to install, Install failed, and Error leave the caption empty so actions sit alone — Error's message is the body, like Install failed. All four screens are the same size. Other update statuses do not show this window.
+The window shown after Install update from the Available sheet. It has four screens: Downloading (progress and Cancel; Cancel stays visible but disabled while the bar finishes filling), Ready to install (Later / Install and restart), Install failed, and Error (OK). The icon is shared; each screen swaps title, body, and a caption | actions row in one column beside it. Downloading puts bytes and Cancel on that row. Ready to install, Install failed, and Error leave the caption empty so actions sit alone — Error's message is the body, like Install failed. All four screens are the same size. Other update statuses do not show this window.
 
 _Avoid: treating the bar-fill hold as its own screen. Do not treat this as the available sheet or the up-to-date sheet. Do not grow the window. Do not put Error's OK on the same row as the message._
 
