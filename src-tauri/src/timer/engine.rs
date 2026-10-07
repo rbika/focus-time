@@ -455,8 +455,8 @@ impl TimerEngine {
     /// `Running`. Countdown remaining and total stopwatch elapsed are
     /// unchanged.
     ///
-    /// Portions of 10 seconds or less are still returned; withholding them
-    /// is `entries::entry_from_interval`'s job. Call this before `tick` so a
+    /// Same-second portions are still returned; withholding them is
+    /// `entries::entry_from_interval`'s job. Call this before `tick` so a
     /// timer that also reached its deadline doesn't record one entry that
     /// straddles midnight.
     pub fn split_crossed_midnight(&mut self, now: SystemTime) -> Vec<FinishedInterval> {
@@ -992,7 +992,7 @@ mod tests {
     #[test]
     fn pause_reports_a_finished_interval_even_for_a_short_tap() {
         // The engine itself always reports the interval that just ended;
-        // discarding accidental sub-10-second taps is `entries`' job (see
+        // withholding a same-second tap is `entries`' job (see
         // `entries::entry_from_interval`), not the engine's.
         let mut engine = TimerEngine::new(120);
         let now = t0();
@@ -1003,17 +1003,22 @@ mod tests {
     }
 
     #[test]
-    fn entry_from_interval_withholds_and_finalizes_around_the_ten_second_rule() {
+    fn entry_from_interval_records_when_end_is_after_start() {
         let mut engine = TimerEngine::new(120);
         let now = t0();
 
         engine.start(now);
-        let ten_seconds = engine.pause(now + Duration::from_secs(10)).unwrap();
-        assert!(crate::entries::entry_from_interval(ten_seconds).is_none());
+        let same_second = engine.pause(now).unwrap();
+        assert!(crate::entries::entry_from_interval(same_second).is_none());
 
-        engine.resume(now + Duration::from_secs(10));
-        let eleven_seconds = engine.pause(now + Duration::from_secs(21)).unwrap();
-        assert!(crate::entries::entry_from_interval(eleven_seconds).is_some());
+        engine.resume(now);
+        let one_second = engine.pause(now + Duration::from_secs(1)).unwrap();
+        assert_eq!(
+            crate::entries::entry_from_interval(one_second)
+                .unwrap()
+                .duration_secs,
+            1
+        );
     }
 
     #[test]
@@ -1100,15 +1105,20 @@ mod tests {
 
     #[test]
     fn natural_completion_of_a_short_timer_still_reports_completed() {
-        // A very short Timer (<=10s) still transitions to Completed and
-        // reports its finished interval — sound/notification must still
-        // fire; only entry persistence withholds it (see `entries` tests).
+        // A 10-second Timer still transitions to Completed and reports its
+        // finished interval — sound/notification must still fire — and the
+        // Interval records as an Entry.
         let mut engine = TimerEngine::new(10);
         let now = t0();
         engine.start(now);
         let finished = engine.tick(now + Duration::from_secs(10)).unwrap();
         assert_eq!(engine.status(), TimerStatus::Completed);
-        assert!(crate::entries::entry_from_interval(finished).is_none());
+        assert_eq!(
+            crate::entries::entry_from_interval(finished)
+                .unwrap()
+                .duration_secs,
+            10
+        );
     }
 
     #[test]
@@ -1236,7 +1246,7 @@ mod tests {
     }
 
     #[test]
-    fn sub_10s_pre_midnight_portion_is_withheld_but_new_interval_starts() {
+    fn short_pre_midnight_portion_records_and_new_interval_starts() {
         let mut engine = TimerEngine::new(60 * 60);
         let start = local_dt(2026, 6, 15, 23, 59, 50);
         let after = local_dt(2026, 6, 16, 0, 0, 5);
@@ -1245,7 +1255,12 @@ mod tests {
 
         let finished = engine.split_crossed_midnight(after);
         assert_eq!(finished.len(), 1);
-        assert!(crate::entries::entry_from_interval(finished[0]).is_none());
+        assert_eq!(
+            crate::entries::entry_from_interval(finished[0])
+                .unwrap()
+                .duration_secs,
+            10
+        );
         assert_eq!(engine.status(), TimerStatus::Running);
         assert_eq!(engine.current_interval_elapsed_secs(after), 5);
 
@@ -1557,7 +1572,7 @@ mod tests {
     }
 
     #[test]
-    fn pomodoro_short_session_still_advances_the_cycle() {
+    fn pomodoro_short_session_records_and_advances_the_cycle() {
         let mut engine = TimerEngine::new(5);
         let config = PomodoroConfig {
             session_secs: 5,
@@ -1568,7 +1583,9 @@ mod tests {
         let now = t0();
         engine.start(now);
         let finished = engine.tick(now + Duration::from_secs(5)).unwrap();
-        assert!(crate::entries::entry_from_interval(finished).is_none());
+        let entry = crate::entries::entry_from_interval(finished).unwrap();
+        assert_eq!(entry.duration_secs, 5);
+        assert_eq!(entry.mode, crate::entries::EntryType::Pomodoro);
         engine.advance_after_completion(now + Duration::from_secs(5), &config);
         assert_eq!(engine.pomodoro_completed_sessions(), 1);
         assert_eq!(engine.pomodoro_phase(), PomodoroPhase::ShortBreak);

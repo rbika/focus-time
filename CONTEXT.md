@@ -5,12 +5,12 @@ A macOS menu bar timer. Running time is recorded as focused time the user can re
 **Entry**:
 One contiguous stretch of focused time, bounded by a start and an end. A new or corrected Entry belongs to exactly one Calendar day. It is either **recorded** from a Start or Resume until Pause, Save of a running Interval, or natural completion, or **created** from Stats as a Manual entry. Persisted Entries are oldest-first by start, then by end. A new or corrected Entry is placed by start, not by when it was saved.
 
-Accidental recorded taps of 10 seconds or less are not recorded. A Manual entry is a draft until Save; the 10-second skip does not apply to create or to later corrections. After an Entry exists, start and end can be corrected (any duration is allowed as long as end is after start); a correction that would cross local midnight is a Midnight split — the existing Entry becomes the earliest piece, later pieces are new, Type is copied onto every piece. Type cannot be changed otherwise. An Entry can be deleted. All Entries can be deleted at once from Statistics. Resuming always begins a new Entry.
+A recorded Interval produces an Entry when end is after start. A Manual entry is a draft until Save. After an Entry exists, start and end can be corrected (any duration is allowed as long as end is after start); a correction that would cross local midnight is a Midnight split — the existing Entry becomes the earliest piece, later pieces are new, Type is copied onto every piece. Type cannot be changed otherwise. An Entry can be deleted. All Entries can be deleted at once from Statistics. Resuming always begins a new Entry.
 
-_Avoid: calling an Entry a Session. Log. Do not treat the 10-second skip as an invariant of a persisted Entry. Do not treat last-saved as newest._
+_Avoid: calling an Entry a Session. Log. Do not treat a same-second tap as an Entry. Do not reintroduce a duration skip. Do not treat last-saved as newest._
 
 **Interval**:
-The engine's in-flight stretch of running time, from the most recent Start or Resume until the next Pause, Save, Discard, Skip, or natural completion. An Interval is not persisted; when it ends it may produce an Entry (subject to the 10-second skip). A Break Interval never produces an Entry. Only one Interval can exist at a time, and only while the engine status is `running`.
+The engine's in-flight stretch of running time, from the most recent Start or Resume until the next Pause, Save, Discard, Skip, or natural completion. An Interval is not persisted; when it ends it may produce an Entry. A Break Interval never produces an Entry. An Interval that ends in the same second it started does not produce an Entry. Only one Interval can exist at a time, and only while the engine status is `running`.
 
 _Avoid: using "interval" and "entry" interchangeably. An Interval is ephemeral; an Entry is persisted._
 
@@ -55,12 +55,12 @@ The sequence of Sessions toward the next Long break. It returns to Session 1 whe
 _Avoid: treating a Cycle as an Entry or as focused time._
 
 **Waiting**:
-The next phase of a Cycle is selected and has not started. Entered after a Session or Break completes (including while quit), after Skip, and after a Long break returns to Session 1. Cancel leaves it; first picking Pomodoro is not Waiting. Survives quit. A Session that completes while quit still records an Entry subject to the usual rules.
+The next phase of a Cycle is selected and has not started. Entered after a Session or Break completes (including while quit), after Skip, and after a Long break returns to Session 1. Cancel leaves it; first picking Pomodoro is not Waiting. Survives quit. A Session that completes while quit still records an Entry.
 
 _Avoid: Idle for this. Do not treat Cancel's Session 1 as Waiting. Do not treat a relaunch as Cancel._
 
 **Cancel**:
-The running-view action that resets the Cycle to Session 1 and leaves Waiting. If a Session Interval is in flight and longer than 10 seconds, Save or Discard first. If a Break Interval is in flight, Discard immediately — no dialog. If already Waiting, only the Cycle is reset.
+The running-view action that resets the Cycle to Session 1 and leaves Waiting. If a non-Break Interval is in flight and end is after start, Save or Discard first. A same-second Interval just resets. If a Break Interval is in flight, Discard immediately — no dialog. If already Waiting, only the Cycle is reset.
 
 _Avoid: Skip (keeps the Cycle). Timer Reset._
 

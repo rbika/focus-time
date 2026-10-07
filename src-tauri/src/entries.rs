@@ -57,12 +57,8 @@ pub struct Totals {
     pub this_month: u64,
 }
 
-/// A run of `MIN_ENTRY_DURATION_SECS` or less is an accidental tap (e.g.
-/// Start immediately followed by Pause), not a real focus session.
-const MIN_ENTRY_DURATION_SECS: u64 = 10;
-
 /// Turns a just-finished engine interval into an Entry ready to persist,
-/// or `None` if it's at or under the 10-second minimum.
+/// or `None` if end is not after start.
 pub fn entry_from_interval(interval: FinishedInterval) -> Option<Entry> {
     let started_at_unix = interval
         .started_at
@@ -74,7 +70,7 @@ pub fn entry_from_interval(interval: FinishedInterval) -> Option<Entry> {
     if !interval.records_entry {
         return None;
     }
-    if duration_secs <= MIN_ENTRY_DURATION_SECS {
+    if ended_at_unix <= started_at_unix {
         return None;
     }
     Some(Entry {
@@ -293,7 +289,7 @@ impl EntriesStore {
     }
 
     /// Persists a Manual entry. Any duration is allowed as long as end is
-    /// after start; the 10-second recording skip does not apply. A range
+    /// after start. A range
     /// that crosses local midnight is split into one Entry per Calendar
     /// day, written oldest-first by start.
     pub fn create_manual(&self, started_at_unix: u64, ended_at_unix: u64) -> Result<Entry, String> {
@@ -371,15 +367,18 @@ mod tests {
     }
 
     #[test]
-    fn entry_from_interval_withholds_at_or_under_ten_seconds() {
+    fn entry_from_interval_withholds_a_same_second_tap() {
         let started = SystemTime::UNIX_EPOCH + Duration::from_secs(2_000_000_000);
+        let same_second = FinishedInterval::new(TimerMode::Timer, started, started);
+        assert!(entry_from_interval(same_second).is_none());
+
+        let one_second =
+            FinishedInterval::new(TimerMode::Timer, started, started + Duration::from_secs(1));
+        assert_eq!(entry_from_interval(one_second).unwrap().duration_secs, 1);
+
         let ten_seconds =
             FinishedInterval::new(TimerMode::Timer, started, started + Duration::from_secs(10));
-        assert!(entry_from_interval(ten_seconds).is_none());
-
-        let eleven_seconds =
-            FinishedInterval::new(TimerMode::Timer, started, started + Duration::from_secs(11));
-        assert!(entry_from_interval(eleven_seconds).is_some());
+        assert_eq!(entry_from_interval(ten_seconds).unwrap().duration_secs, 10);
     }
 
     #[test]
@@ -947,7 +946,7 @@ mod tests {
     }
 
     #[test]
-    fn create_manual_persists_manual_type_without_ten_second_skip() {
+    fn create_manual_persists_manual_type_for_a_short_range() {
         let dir = temp_dir("create-manual");
         fs::create_dir_all(&dir).unwrap();
         let store = EntriesStore::new(dir.clone());
@@ -1094,7 +1093,7 @@ mod tests {
     }
 
     #[test]
-    fn create_manual_keeps_sub_ten_second_split_pieces() {
+    fn create_manual_keeps_short_split_pieces() {
         let dir = temp_dir("create-split-short");
         fs::create_dir_all(&dir).unwrap();
         let store = EntriesStore::new(dir.clone());

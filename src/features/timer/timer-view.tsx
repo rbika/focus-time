@@ -195,8 +195,12 @@ export function TimerView({ active }: { active: boolean }) {
       void discard()
       return
     }
-    if (current?.status === 'running' && current.intervalElapsedSecs > 10) {
+    if (current?.status === 'running' && current.intervalElapsedSecs > 0) {
       showDialog()
+      return
+    }
+    if (current?.status === 'running') {
+      void discard()
       return
     }
     void reset()

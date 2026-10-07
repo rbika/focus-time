@@ -8,7 +8,7 @@ use crate::persistence::Settings;
 use crate::timer::{FinishedInterval, TimerMode, TimerSnapshot, TimerStatus};
 
 /// If the engine just finalized a run, turn it into a persisted Entry
-/// (subject to the 10-second minimum) and notify any open Stats view.
+/// (when end is after start) and notify any open Stats view.
 pub fn finalize_interval(app: &AppHandle, finished: Option<FinishedInterval>) {
     let Some(interval) = finished else {
         return;
