@@ -36,14 +36,16 @@ function startOfLocalDayTime(unixSecs: number): number {
 }
 
 /** Pins a synthetic running entry to the top of its Calendar day. A null
- * interval or an unloaded list returns the same reference so an idle
- * snapshot does not churn the list. Assumes `entries` is newest-first. */
+ * interval returns the same reference so an idle snapshot does not churn
+ * the list. An unloaded list still shows the running entry. Assumes
+ * `entries` is newest-first. */
 export function withActiveEntry(
   entries: Entry[] | null,
   active: ActiveInterval | null,
   nowUnix: number = Math.floor(Date.now() / 1000),
 ): Entry[] | null {
-  if (active == null || entries == null) return entries
+  if (active == null) return entries
+  const persisted = entries ?? []
   const running: Entry = {
     id: ACTIVE_ENTRY_ID,
     mode: active.mode,
@@ -52,9 +54,9 @@ export function withActiveEntry(
     durationSecs: active.intervalElapsedSecs,
   }
   const runningDay = startOfLocalDayTime(running.startedAtUnix)
-  const insertAt = entries.findIndex(
+  const insertAt = persisted.findIndex(
     (entry) => startOfLocalDayTime(entry.startedAtUnix) <= runningDay,
   )
-  const index = insertAt === -1 ? entries.length : insertAt
-  return [...entries.slice(0, index), running, ...entries.slice(index)]
+  const index = insertAt === -1 ? persisted.length : insertAt
+  return [...persisted.slice(0, index), running, ...persisted.slice(index)]
 }

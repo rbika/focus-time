@@ -79,14 +79,22 @@ describe('withActiveEntry', () => {
     assert.equal(withActiveEntry(entries, null, nowUnix), entries)
   })
 
-  it('returns null entries unchanged', () => {
-    assert.equal(
+  it('shows the running entry when the list is unloaded', () => {
+    assert.deepEqual(
       withActiveEntry(
         null,
         { mode: 'timer', intervalElapsedSecs: 15 },
         nowUnix,
       ),
-      null,
+      [
+        {
+          id: ACTIVE_ENTRY_ID,
+          mode: 'timer',
+          startedAtUnix: nowUnix - 15,
+          endedAtUnix: nowUnix,
+          durationSecs: 15,
+        },
+      ],
     )
   })
 

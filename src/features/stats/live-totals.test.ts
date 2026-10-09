@@ -9,8 +9,12 @@ import {
 const totals = { today: 10, thisWeek: 20, thisMonth: 30 }
 
 describe('withActiveInterval', () => {
-  it('returns null totals unchanged', () => {
-    assert.equal(withActiveInterval(null, 15), null)
+  it('treats missing persisted totals as zero', () => {
+    assert.deepEqual(withActiveInterval(null, 15), {
+      today: 15,
+      thisWeek: 15,
+      thisMonth: 15,
+    })
   })
 
   it('returns the same totals when there is nothing to add', () => {

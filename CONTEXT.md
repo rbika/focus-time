@@ -90,7 +90,7 @@ The window opened and hidden by a tray left-click. It shows Timer or Stats; last
 _Avoid: main window. Do not treat Stats as its own window. Do not treat a Notification click as Show Timer (⌘1) or as a tray toggle._
 
 **Stats**:
-The view in the Timer window where focused time is reviewed: Dashboard totals and the Entries list. The Entries list is newest-first by start, grouped by Calendar day.
+The view in the Timer window where focused time is reviewed: Dashboard totals and the Entries list. The Entries list is newest-first by start, grouped by Calendar day. While Dashboard or Entries is visible, Today, This Week, This Month, and the Entries grouping are for the current Calendar day — never a previous one, even while a newer load is in flight, and never only after switching tabs.
 _Avoid: Statistics for this view. Do not treat last-saved as newest. Do not treat Stats as a separate window._
 
 **Period**:
@@ -145,9 +145,14 @@ Deleting every persisted Entry after confirmation. An active Interval is left ru
 _Avoid: timer Reset (engine back to Idle). Do not treat this as Discard._
 
 **Calendar day**:
-The local-timezone midnight-to-midnight date an Entry belongs to, taken from its start time. A new or corrected Entry starts on that day; its end falls on that day or on the next local midnight. Dashboard totals and the Entries list both use this.
+The local-timezone midnight-to-midnight date an Entry belongs to, taken from its start time. A new or corrected Entry starts on that day; its end falls on that day or on the next local midnight. Dashboard totals and the Entries list both use this. A visible Stats surface always follows the current Calendar day, not the Calendar day of an earlier load.
 
 _Avoid: grouping by end time. Do not assume every persisted Entry already obeys the same-day bound. Do not require the end to fall on the start's date._
+
+**Today**:
+The current Calendar day in Stats: the Dashboard tile and the Entries list group of that name. This Week and This Month are the current week and calendar month that contain Today.
+
+_Avoid: treating a previous Calendar day's total as Today._
 
 **Midnight split**:
 Cutting a stretch of focused time at each local midnight so every resulting Entry belongs to one Calendar day. The earlier piece ends at the next local 00:00:00; the next piece starts at that same instant. For a running Interval, the engine records the earlier Entry and continues the Interval from that midnight; countdown remaining and stopwatch elapsed are unchanged. A Break that crosses midnight is not recorded; the Break Interval continues. For Save in the Entry editor, one start/end range becomes one Entry per Calendar day, silently: the existing Entry becomes the earliest piece, later pieces are new. Pieces are independent Entries. Entries persisted before this rule may still straddle until a later start/end correction; opening one without changing times does not split it. An Entry already ended at 23:59:59 stays that way until a later start/end correction; opening it without changing times does not move the end to the next midnight.

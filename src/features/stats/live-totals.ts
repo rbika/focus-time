@@ -19,15 +19,17 @@ export function selectLiveIntervalElapsedSecs(
 }
 
 /** Adds the active interval to each Dashboard total. A zero overlay returns
- * the same object so an idle snapshot does not churn the tiles. */
+ * the same object so an idle snapshot does not churn the tiles. Missing
+ * persisted totals count as zero so a running interval still shows. */
 export function withActiveInterval(
   totals: Totals | null,
   intervalElapsedSecs: number,
 ): Totals | null {
-  if (totals == null || intervalElapsedSecs === 0) return totals
+  if (intervalElapsedSecs === 0) return totals
+  const persisted = totals ?? { today: 0, thisWeek: 0, thisMonth: 0 }
   return {
-    today: totals.today + intervalElapsedSecs,
-    thisWeek: totals.thisWeek + intervalElapsedSecs,
-    thisMonth: totals.thisMonth + intervalElapsedSecs,
+    today: persisted.today + intervalElapsedSecs,
+    thisWeek: persisted.thisWeek + intervalElapsedSecs,
+    thisMonth: persisted.thisMonth + intervalElapsedSecs,
   }
 }
