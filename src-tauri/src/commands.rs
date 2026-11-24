@@ -8,7 +8,7 @@ use crate::persistence::Settings;
 use crate::timer::{FinishedInterval, TimerMode, TimerSnapshot, TimerStatus};
 
 /// If the engine just finalized a run, turn it into a persisted Entry
-/// (when end is after start) and notify any open Stats view.
+/// (when end is after start) and notify Dashboard and the Entries window.
 pub fn finalize_interval(app: &AppHandle, finished: Option<FinishedInterval>) {
     let Some(interval) = finished else {
         return;
@@ -428,6 +428,18 @@ pub fn open_settings(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_entries(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("entries") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        crate::window::focus_webview(&window);
+        let snapshot = app.state::<AppState>().snapshot();
+        let _ = app.emit("timer-tick", &snapshot);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_completion_sounds() -> Vec<&'static str> {
     crate::sound::COMPLETION_SOUNDS.to_vec()
 }
@@ -437,16 +449,22 @@ pub fn preview_sound(app: AppHandle, name: String) {
     crate::sound::play_named_sound(&app, &name);
 }
 
-#[tauri::command]
-pub fn quit_app(app: AppHandle) {
-    crate::tray::save_main_window_position(&app);
+/// Pause as of now, record an Entry if end is after start, persist.
+/// Safe to call twice — a second Pause is a no-op.
+pub fn pause_for_quit(app: &AppHandle) {
+    crate::tray::save_main_window_position(app);
     let state = app.state::<AppState>();
     let finished = {
         let mut engine = state.engine.lock().expect("engine lock");
         engine.pause(SystemTime::now())
     };
-    finalize_interval(&app, finished);
+    finalize_interval(app, finished);
     let _ = state.persist();
+}
+
+#[tauri::command]
+pub fn quit_app(app: AppHandle) {
+    pause_for_quit(&app);
     app.exit(0);
 }
 

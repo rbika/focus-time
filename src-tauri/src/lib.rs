@@ -62,6 +62,7 @@ pub fn run() {
             commands::hide_timer_window,
             commands::toggle_timer_window,
             commands::open_settings,
+            commands::open_entries,
             commands::get_completion_sounds,
             commands::preview_sound,
             commands::quit_app,
@@ -72,7 +73,6 @@ pub fn run() {
             commands::cancel_update_download,
             commands::dismiss_update_progress,
             commands::install_and_restart,
-            window::resize_main_window,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -97,10 +97,11 @@ pub fn run() {
                 main_window_position,
                 updater_meta,
             );
-            // Ensure a state file exists immediately for crash recovery.
-            let _ = state.persist();
             app.manage(state);
+            // Record a leftover Interval before rewriting state as Paused, so
+            // a crash between load and persist cannot Discard the Entry.
             commands::finalize_interval(app.handle(), finished);
+            let _ = app.state::<AppState>().persist();
 
             sync_autostart(app.handle());
             tray::create_tray(app.handle())?;
@@ -133,8 +134,13 @@ pub fn run() {
             }
             _ => {}
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Focus Time");
+        .build(tauri::generate_context!())
+        .expect("error while running Focus Time")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                commands::pause_for_quit(app);
+            }
+        });
 }
 
 /// Load `.env.local` then `.env` from the project root (debug only).

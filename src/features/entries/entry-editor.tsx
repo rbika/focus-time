@@ -14,9 +14,9 @@ import { useDialogOverlay } from '@/features/dialog/use-dialog-overlay'
 import {
   fromDatetimeLocalValue,
   toDatetimeLocalValue,
-} from '@/features/stats/datetime-local'
-import { DeleteEntryDialog } from '@/features/stats/delete-entry-dialog'
-import { api, onMainWindowHidden, type Entry } from '@/lib/tauri'
+} from '@/features/entries/datetime-local'
+import { DeleteEntryDialog } from '@/features/entries/delete-entry-dialog'
+import { api, type Entry } from '@/lib/tauri'
 import { cn } from '@/utils/cn'
 import { secsToTotalLabel } from '@/utils/time'
 
@@ -75,16 +75,6 @@ export function EntryEditor({ entry, creating, active, onClose }: Props) {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [active, dialogFrame.mounted, dismissDialog, onClose])
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    void onMainWindowHidden(() => snapDialog()).then((fn) => {
-      unlisten = fn
-    })
-    return () => {
-      unlisten?.()
-    }
-  }, [snapDialog])
 
   const startedUnix = fromDatetimeLocalValue(started)
   const endedUnix = fromDatetimeLocalValue(ended)

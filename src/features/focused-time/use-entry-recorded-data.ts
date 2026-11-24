@@ -3,13 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 import {
   dataForCurrentCalendarDay,
   localCalendarDayKey,
-} from '@/features/stats/current-calendar-day'
+} from '@/features/focused-time/current-calendar-day'
 import { onEntriesChanged, onEntryRecorded } from '@/lib/tauri'
 import { useTimerStore } from '@/store/timer-store'
 
 /** Fetches data via `fetcher` on mount and refetches it whenever Entries
  * change (recorded, edited, or deleted) or the local Calendar day changes.
- * Shared by the Dashboard and Entries tabs. A previous Calendar day's
+ * Shared by Dashboard and Entries. A previous Calendar day's
  * payload is never returned. */
 export function useEntryRecordedData<T>(fetcher: () => Promise<T>): {
   data: T | null

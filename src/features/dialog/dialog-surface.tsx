@@ -13,6 +13,7 @@ type Props = {
   labelledBy: string
   describedBy: string
   onDismiss: () => void
+  belowTitleBar?: boolean
   children: ReactNode
 }
 
@@ -21,12 +22,19 @@ export function DialogSurface({
   labelledBy,
   describedBy,
   onDismiss,
+  belowTitleBar = false,
   children,
 }: Props) {
   if (!frame.mounted) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50">
+    <div
+      className={
+        belowTitleBar
+          ? 'fixed inset-x-0 top-8 bottom-0 z-50'
+          : 'fixed inset-0 z-50'
+      }
+    >
       <div
         className="absolute inset-0 bg-black/40"
         style={dialogBackdropStyle(frame)}

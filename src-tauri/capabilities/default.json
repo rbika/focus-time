@@ -5,6 +5,7 @@
   "windows": [
     "main",
     "settings",
+    "entries",
     "up-to-date",
     "update-available",
     "update-progress"

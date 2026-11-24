@@ -379,7 +379,10 @@ pub async fn install_and_restart(app: AppHandle) -> Result<(), String> {
         tauri::async_runtime::spawn_blocking(move || (update.install(&bytes), update, bytes)).await;
 
     let err = match install_result {
-        Ok((Ok(()), _, _)) => app.restart(),
+        Ok((Ok(()), _, _)) => {
+            crate::commands::pause_for_quit(&app);
+            app.restart()
+        }
         Ok((Err(err), update, bytes)) => {
             let version = update.version.clone();
             *state

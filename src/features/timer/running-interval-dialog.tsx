@@ -31,6 +31,7 @@ export function RunningIntervalDialog({
       labelledBy="running-interval-title"
       describedBy="running-interval-desc"
       onDismiss={onClose}
+      belowTitleBar
     >
       <h2
         id="running-interval-title"

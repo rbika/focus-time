@@ -15,6 +15,7 @@ use crate::timer::{TimerMode, TimerSnapshot, TimerStatus};
 const TRAY_ID: &str = "main";
 const SIBLING_WINDOW_LABELS: &[&str] = &[
     "settings",
+    "entries",
     "up-to-date",
     "update-available",
     "update-progress",
@@ -378,10 +379,11 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
 }
 
 pub fn emit_tick_if_visible(app: &AppHandle, snapshot: &TimerSnapshot) {
-    let visible = app
-        .get_webview_window("main")
-        .and_then(|w| w.is_visible().ok())
-        .unwrap_or(false);
+    let visible = ["main", "entries"].iter().any(|label| {
+        app.get_webview_window(label)
+            .and_then(|window| window.is_visible().ok())
+            .unwrap_or(false)
+    });
     if visible {
         let _ = app.emit("timer-tick", snapshot);
     }

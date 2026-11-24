@@ -164,6 +164,10 @@ impl TimerEngine {
         self.elapsed_at_pause
     }
 
+    pub fn remaining_at_pause(&self) -> u64 {
+        self.remaining_at_pause
+    }
+
     pub fn remaining_secs(&self, now: SystemTime) -> u64 {
         match self.status {
             TimerStatus::Running => match self.deadline {
@@ -338,13 +342,8 @@ impl TimerEngine {
     /// anchors stay put: timer remaining still comes from `deadline`, and
     /// stopwatch elapsed still comes from `started_at`.
     ///
-    /// Exception: a Timer restored mid-run by `restore_running` (app
-    /// restart while Running) re-derives `remaining_at_pause` from the
-    /// post-restart remaining time, not the pre-run value, so this
-    /// resolves to the restart instant rather than the original Start —
-    /// the pre-restart portion of that run is not represented in the
-    /// eventual Entry. `state.json` doesn't persist the original pre-run
-    /// remaining separately, so this is the best available approximation.
+    /// Persistence stores this frozen remaining so a leftover Running
+    /// Interval Pauses with the original Start, not the persist instant.
     fn current_interval_start(&self) -> Option<SystemTime> {
         if self.status != TimerStatus::Running {
             return None;
@@ -562,17 +561,34 @@ impl TimerEngine {
         None
     }
 
-    /// Restore a previously running timer after process restart.
-    pub fn restore_running(&mut self, deadline: SystemTime, now: SystemTime) {
-        self.mode = TimerMode::Timer;
+    /// Put a countdown back into Running using the frozen pre-run remaining
+    /// so `current_interval_start` is the original Start, not the persist instant.
+    pub fn restore_countdown_running_frozen(
+        &mut self,
+        deadline: SystemTime,
+        remaining_at_pause: u64,
+    ) {
         self.deadline = Some(deadline);
+        self.remaining_at_pause = remaining_at_pause;
         self.started_at = None;
         self.status = TimerStatus::Running;
-        if self.tick(now).is_some() {
-            // completed during downtime; not retroactively recorded as an Entry
-        } else {
-            self.remaining_at_pause = self.remaining_secs(now);
+    }
+
+    /// Quit of leftover Running: Pause as of `paused_at` without completing.
+    /// A countdown whose persist instant is at or past the deadline still
+    /// Pauses one second before it, so a Session does not complete while
+    /// the process is gone.
+    pub fn pause_leftover_running(&mut self, paused_at: SystemTime) -> Option<FinishedInterval> {
+        if self.status != TimerStatus::Running {
+            return None;
         }
+        let paused_at = match self.deadline {
+            Some(deadline) if paused_at >= deadline => deadline
+                .checked_sub(Duration::from_secs(1))
+                .unwrap_or(deadline),
+            _ => paused_at,
+        };
+        self.pause(paused_at)
     }
 
     pub fn restore_stopwatch_running(&mut self, started_at: SystemTime, elapsed_at_pause: u64) {
@@ -627,22 +643,6 @@ impl TimerEngine {
 
     pub fn restore_timer_duration(&mut self, duration_secs: u64) {
         self.timer_duration_secs = duration_secs;
-    }
-
-    pub fn restore_countdown_running(
-        &mut self,
-        deadline: SystemTime,
-        now: SystemTime,
-    ) -> Option<FinishedInterval> {
-        self.deadline = Some(deadline);
-        self.started_at = None;
-        self.status = TimerStatus::Running;
-        if let Some(finished) = self.tick(now) {
-            Some(finished)
-        } else {
-            self.remaining_at_pause = self.remaining_secs(now);
-            None
-        }
     }
 
     pub fn apply_idle_pomodoro_config(&mut self, config: &PomodoroConfig) {
@@ -850,25 +850,6 @@ mod tests {
         engine.reset(t0() + Duration::from_secs(30));
         assert_eq!(engine.status(), TimerStatus::Idle);
         assert_eq!(engine.remaining_secs(t0()), 90);
-    }
-
-    #[test]
-    fn restore_running_after_crash_completes_if_past_deadline() {
-        let mut engine = TimerEngine::new(30);
-        let started = t0();
-        let deadline = started + Duration::from_secs(30);
-        engine.restore_running(deadline, started + Duration::from_secs(45));
-        assert_eq!(engine.status(), TimerStatus::Completed);
-    }
-
-    #[test]
-    fn restore_running_keeps_remaining() {
-        let mut engine = TimerEngine::new(30);
-        let started = t0();
-        let deadline = started + Duration::from_secs(30);
-        engine.restore_running(deadline, started + Duration::from_secs(10));
-        assert_eq!(engine.status(), TimerStatus::Running);
-        assert_eq!(engine.remaining_secs(started + Duration::from_secs(10)), 20);
     }
 
     #[test]

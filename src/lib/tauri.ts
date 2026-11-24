@@ -29,8 +29,6 @@ export interface TimerSnapshot {
 
 export type Presets = [number | null, number | null, number | null]
 
-export type MainView = 'timer' | 'stats'
-
 export type WeekStart = 'sunday' | 'monday'
 
 export const DEFAULT_WEEK_START: WeekStart = 'monday'
@@ -109,9 +107,8 @@ export const api = {
   skip: () => invoke<TimerSnapshot>('skip'),
   showTimerWindow: () => invoke<void>('show_timer_window'),
   hideTimerWindow: () => invoke<void>('hide_timer_window'),
-  resizeMainWindow: (view: MainView) =>
-    invoke<void>('resize_main_window', { view }),
   openSettings: () => invoke<void>('open_settings'),
+  openEntries: () => invoke<void>('open_entries'),
   getCompletionSounds: () => invoke<string[]>('get_completion_sounds'),
   previewSound: (name: string) => invoke<void>('preview_sound', { name }),
   quitApp: () => invoke<void>('quit_app'),

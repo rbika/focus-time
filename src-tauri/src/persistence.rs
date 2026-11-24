@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::entries::WeekStart;
@@ -134,6 +134,10 @@ struct PersistedTimer {
     /// Unix timestamp seconds when running (stopwatch mode).
     #[serde(default)]
     started_at_unix: Option<u64>,
+    /// Unix timestamp seconds of the last persist. Quit of leftover Running
+    /// Pauses as of this instant.
+    #[serde(default)]
+    saved_at_unix: Option<u64>,
     #[serde(default)]
     timer_duration_secs: Option<u64>,
     #[serde(default)]
@@ -159,6 +163,13 @@ struct PersistedState {
 
 pub struct Persistence {
     path: PathBuf,
+}
+
+fn persist_instant(path: &Path, saved_at_unix: Option<u64>, now: SystemTime) -> SystemTime {
+    if let Some(secs) = saved_at_unix {
+        return UNIX_EPOCH + Duration::from_secs(secs);
+    }
+    fs::metadata(path).and_then(|m| m.modified()).unwrap_or(now)
 }
 
 impl Persistence {
@@ -213,6 +224,7 @@ impl Persistence {
         let duration = state.timer.duration_secs;
         let mut engine = TimerEngine::new(duration);
         let now = SystemTime::now();
+        let paused_at = persist_instant(&self.path, state.timer.saved_at_unix, now);
         let mut finished = None;
         engine.restore_timer_duration(state.timer.timer_duration_secs.unwrap_or(
             if state.timer.mode == TimerMode::Timer {
@@ -232,7 +244,11 @@ impl Persistence {
                 TimerStatus::Running => {
                     if let Some(deadline_unix) = state.timer.deadline_unix {
                         let deadline = UNIX_EPOCH + Duration::from_secs(deadline_unix);
-                        engine.restore_running(deadline, now);
+                        engine.restore_countdown_running_frozen(
+                            deadline,
+                            state.timer.remaining_at_pause,
+                        );
+                        finished = engine.pause_leftover_running(paused_at);
                     } else {
                         engine.reset(now);
                     }
@@ -252,6 +268,7 @@ impl Persistence {
                     if let Some(started_at_unix) = state.timer.started_at_unix {
                         let started_at = UNIX_EPOCH + Duration::from_secs(started_at_unix);
                         engine.restore_stopwatch_running(started_at, state.timer.elapsed_at_pause);
+                        finished = engine.pause_leftover_running(paused_at);
                     } else {
                         engine.set_mode(TimerMode::Stopwatch);
                         engine.reset(now);
@@ -272,13 +289,11 @@ impl Persistence {
                     TimerStatus::Running => {
                         if let Some(deadline_unix) = state.timer.deadline_unix {
                             let deadline = UNIX_EPOCH + Duration::from_secs(deadline_unix);
-                            finished = engine.restore_countdown_running(deadline, now);
-                            if engine.status() == TimerStatus::Completed {
-                                engine.advance_after_completion(
-                                    now,
-                                    &state.settings.pomodoro_config(),
-                                );
-                            }
+                            engine.restore_countdown_running_frozen(
+                                deadline,
+                                state.timer.remaining_at_pause,
+                            );
+                            finished = engine.pause_leftover_running(paused_at);
                         } else {
                             engine.reset(now);
                         }
@@ -309,6 +324,7 @@ impl Persistence {
         engine: &TimerEngine,
         main_window_position: Option<WindowPosition>,
         updater: &UpdaterMeta,
+        now: SystemTime,
     ) -> Result<(), String> {
         let deadline_unix = engine.deadline().and_then(|deadline| {
             deadline
@@ -319,6 +335,7 @@ impl Persistence {
         let started_at_unix = engine
             .started_at()
             .and_then(|started| started.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs()));
+        let saved_at_unix = now.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs());
 
         let state = PersistedState {
             settings: settings.clone(),
@@ -326,10 +343,11 @@ impl Persistence {
                 mode: engine.mode(),
                 status: engine.status(),
                 duration_secs: engine.duration_secs(),
-                remaining_at_pause: engine.remaining_secs(SystemTime::now()),
+                remaining_at_pause: engine.remaining_at_pause(),
                 deadline_unix,
                 elapsed_at_pause: engine.elapsed_at_pause(),
                 started_at_unix,
+                saved_at_unix,
                 timer_duration_secs: Some(engine.timer_duration_secs()),
                 pomodoro_phase: engine.pomodoro_phase(),
                 pomodoro_completed_sessions: engine.pomodoro_completed_sessions(),
@@ -394,7 +412,7 @@ mod tests {
             last_auto_check_unix: Some(1_700_000_000),
         };
         persistence
-            .save(&settings, &engine, Some(position), &updater)
+            .save(&settings, &engine, Some(position), &updater, now)
             .unwrap();
 
         let (loaded_settings, loaded_engine, loaded_position, loaded_updater, _) =
@@ -584,7 +602,13 @@ mod tests {
         engine.start(now);
         engine.pause(now + Duration::from_secs(42));
         persistence
-            .save(&settings, &engine, None, &UpdaterMeta::default())
+            .save(
+                &settings,
+                &engine,
+                None,
+                &UpdaterMeta::default(),
+                now + Duration::from_secs(42),
+            )
             .unwrap();
 
         let (_, loaded_engine, _, _, _) = persistence.load();
@@ -605,7 +629,7 @@ mod tests {
     }
 
     #[test]
-    fn running_stopwatch_roundtrip_keeps_post_midnight_interval() {
+    fn running_stopwatch_load_pauses_at_last_persist() {
         let dir = std::env::temp_dir().join(format!(
             "focus-time-stopwatch-midnight-{}",
             SystemTime::now()
@@ -623,15 +647,23 @@ mod tests {
         engine.start(start);
         assert_eq!(engine.split_crossed_midnight(after).len(), 1);
         persistence
-            .save(&Settings::default(), &engine, None, &UpdaterMeta::default())
+            .save(
+                &Settings::default(),
+                &engine,
+                None,
+                &UpdaterMeta::default(),
+                after,
+            )
             .unwrap();
 
-        let (_, mut loaded_engine, _, _, _) = persistence.load();
+        let (_, loaded_engine, _, _, finished) = persistence.load();
+        let finished = finished.expect("Quit of a running stopwatch should Pause");
         assert_eq!(loaded_engine.mode(), TimerMode::Stopwatch);
-        assert_eq!(loaded_engine.status(), TimerStatus::Running);
-        assert_eq!(loaded_engine.elapsed_secs(after), 90 * 60);
-        assert_eq!(loaded_engine.current_interval_elapsed_secs(after), 30 * 60);
-        assert!(loaded_engine.split_crossed_midnight(after).is_empty());
+        assert_eq!(loaded_engine.status(), TimerStatus::Paused);
+        assert_eq!(loaded_engine.elapsed_at_pause(), 90 * 60);
+        assert_eq!(finished.started_at, local_dt(2026, 6, 16, 0, 0, 0));
+        assert_eq!(finished.ended_at, after);
+        assert!(finished.records_entry);
 
         let _ = fs::remove_dir_all(dir);
     }
@@ -654,7 +686,13 @@ mod tests {
         engine.restore_pomodoro_cycle(crate::timer::PomodoroPhase::ShortBreak, 2, 4);
         engine.apply_idle_pomodoro_config(&settings.pomodoro_config());
         persistence
-            .save(&settings, &engine, None, &UpdaterMeta::default())
+            .save(
+                &settings,
+                &engine,
+                None,
+                &UpdaterMeta::default(),
+                SystemTime::now(),
+            )
             .unwrap();
 
         let (loaded_settings, loaded_engine, _, _, _) = persistence.load();
@@ -689,7 +727,13 @@ mod tests {
         engine.apply_idle_pomodoro_config(&settings.pomodoro_config());
         engine.restore_waiting(true);
         persistence
-            .save(&settings, &engine, None, &UpdaterMeta::default())
+            .save(
+                &settings,
+                &engine,
+                None,
+                &UpdaterMeta::default(),
+                SystemTime::now(),
+            )
             .unwrap();
 
         let (_, loaded_engine, _, _, finished) = persistence.load();
@@ -706,36 +750,196 @@ mod tests {
     }
 
     #[test]
-    fn pomodoro_session_completed_while_quit_records_and_is_waiting() {
+    fn running_timer_load_pauses_at_last_persist() {
         let dir = std::env::temp_dir().join(format!(
-            "focus-time-quit-complete-{}",
+            "focus-time-quit-pause-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()
         ));
         fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("state.json"),
+            r#"{
+                "settings": {
+                    "hideWindowOnStart": true,
+                    "pauseOnSleep": true,
+                    "startAtLogin": false
+                },
+                "timer": {
+                    "mode": "timer",
+                    "status": "running",
+                    "durationSecs": 1500,
+                    "remainingAtPause": 1500,
+                    "deadlineUnix": 2000001500,
+                    "savedAtUnix": 2000000010
+                }
+            }"#,
+        )
+        .unwrap();
+
         let persistence = Persistence::new(dir.clone());
-
-        let mut settings = Settings::default();
-        settings.session_length_secs = 25;
-        settings.short_break_length_secs = 5;
-        let mut engine = TimerEngine::new(25);
-        engine.set_mode(TimerMode::Pomodoro);
-        engine.apply_idle_pomodoro_config(&settings.pomodoro_config());
-        let start = UNIX_EPOCH + Duration::from_secs(1_000_000);
-        engine.start(start);
-        persistence
-            .save(&settings, &engine, None, &UpdaterMeta::default())
-            .unwrap();
-
         let (_, loaded_engine, _, _, finished) = persistence.load();
-        let finished = finished.expect("session completed while quit should finish");
+        let finished = finished.expect("Quit of a running Interval should Pause");
         assert!(finished.records_entry);
-        assert_eq!(loaded_engine.pomodoro_phase(), PomodoroPhase::ShortBreak);
-        assert_eq!(loaded_engine.status(), TimerStatus::Idle);
-        assert!(loaded_engine.waiting());
+        assert_eq!(
+            finished.started_at,
+            UNIX_EPOCH + Duration::from_secs(2_000_000_000)
+        );
+        assert_eq!(
+            finished.ended_at,
+            UNIX_EPOCH + Duration::from_secs(2_000_000_010)
+        );
+        assert_eq!(loaded_engine.status(), TimerStatus::Paused);
+        assert_eq!(
+            loaded_engine.remaining_secs(UNIX_EPOCH + Duration::from_secs(2_000_000_010)),
+            1490
+        );
         assert!(crate::entries::entry_from_interval(finished).is_some());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn pomodoro_session_past_deadline_load_pauses_and_does_not_wait() {
+        let dir = std::env::temp_dir().join(format!(
+            "focus-time-quit-session-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("state.json"),
+            r#"{
+                "settings": {
+                    "hideWindowOnStart": true,
+                    "pauseOnSleep": true,
+                    "startAtLogin": false
+                },
+                "timer": {
+                    "mode": "pomodoro",
+                    "status": "running",
+                    "durationSecs": 25,
+                    "remainingAtPause": 25,
+                    "deadlineUnix": 1000025,
+                    "savedAtUnix": 1000010,
+                    "pomodoroPhase": "session",
+                    "pomodoroCompletedSessions": 0
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let persistence = Persistence::new(dir.clone());
+        let (_, loaded_engine, _, _, finished) = persistence.load();
+        let finished = finished.expect("Quit of a running Session should Pause");
+        assert!(finished.records_entry);
+        assert_eq!(
+            finished.started_at,
+            UNIX_EPOCH + Duration::from_secs(1_000_000)
+        );
+        assert_eq!(
+            finished.ended_at,
+            UNIX_EPOCH + Duration::from_secs(1_000_010)
+        );
+        assert_eq!(loaded_engine.status(), TimerStatus::Paused);
+        assert_eq!(loaded_engine.pomodoro_phase(), PomodoroPhase::Session);
+        assert!(!loaded_engine.waiting());
+        assert_eq!(
+            loaded_engine.remaining_secs(UNIX_EPOCH + Duration::from_secs(1_000_010)),
+            15
+        );
+        assert!(crate::entries::entry_from_interval(finished).is_some());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn leftover_running_past_deadline_still_pauses() {
+        let dir = std::env::temp_dir().join(format!(
+            "focus-time-quit-past-deadline-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("state.json"),
+            r#"{
+                "settings": {
+                    "hideWindowOnStart": true,
+                    "pauseOnSleep": true,
+                    "startAtLogin": false
+                },
+                "timer": {
+                    "mode": "timer",
+                    "status": "running",
+                    "durationSecs": 25,
+                    "remainingAtPause": 25,
+                    "deadlineUnix": 1000025,
+                    "savedAtUnix": 1000100
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let persistence = Persistence::new(dir.clone());
+        let (_, loaded_engine, _, _, finished) = persistence.load();
+        let finished = finished.expect("leftover Running must Pause, not complete");
+        assert!(finished.records_entry);
+        assert_eq!(loaded_engine.status(), TimerStatus::Paused);
+        assert_eq!(
+            loaded_engine.remaining_secs(UNIX_EPOCH + Duration::from_secs(1_000_024)),
+            1
+        );
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn running_break_load_pauses_without_entry() {
+        let dir = std::env::temp_dir().join(format!(
+            "focus-time-quit-break-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("state.json"),
+            r#"{
+                "settings": {
+                    "hideWindowOnStart": true,
+                    "pauseOnSleep": true,
+                    "startAtLogin": false
+                },
+                "timer": {
+                    "mode": "pomodoro",
+                    "status": "running",
+                    "durationSecs": 300,
+                    "remainingAtPause": 300,
+                    "deadlineUnix": 2000000300,
+                    "savedAtUnix": 2000000010,
+                    "pomodoroPhase": "shortBreak",
+                    "pomodoroCompletedSessions": 1
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let persistence = Persistence::new(dir.clone());
+        let (_, loaded_engine, _, _, finished) = persistence.load();
+        let finished = finished.expect("Quit of a running Break should Pause");
+        assert!(!finished.records_entry);
+        assert_eq!(loaded_engine.status(), TimerStatus::Paused);
+        assert_eq!(loaded_engine.pomodoro_phase(), PomodoroPhase::ShortBreak);
+        assert!(!loaded_engine.waiting());
+        assert!(crate::entries::entry_from_interval(finished).is_none());
 
         let _ = fs::remove_dir_all(dir);
     }

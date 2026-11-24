@@ -68,7 +68,12 @@ impl AppState {
             .lock()
             .expect("main window position lock");
         let updater = self.updater_meta.lock().expect("updater meta lock");
-        self.persistence
-            .save(&settings, &engine, main_window_position, &updater)
+        self.persistence.save(
+            &settings,
+            &engine,
+            main_window_position,
+            &updater,
+            SystemTime::now(),
+        )
     }
 }

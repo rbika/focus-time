@@ -12,7 +12,7 @@ Requires **macOS 26 (Tahoe)** or newer.
 - Light and dark mode.
 - Timer state preserved across app restarts.
 - Pause when your Mac sleeps.
-- Stats for the day, week, and month.
+- Dashboard totals for today, this week, and this month.
 - Add, edit, and delete focused-time entries.
 
 ## Installation instructions

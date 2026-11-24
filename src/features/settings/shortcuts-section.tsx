@@ -14,15 +14,9 @@ const SHORTCUTS = [
   { label: 'Cancel the timer', keys: '⌘X' },
   { label: 'Hide the window', keys: 'Escape' },
   {
-    label: 'Show Timer',
-    description:
-      'Press again to switch between Timer / Stopwatch / Pomodoro tabs.',
+    label: 'Switch Timer / Stopwatch / Pomodoro',
+    description: 'While idle or completed, and not Waiting.',
     keys: '⌘1',
-  },
-  {
-    label: 'Show Stats',
-    description: 'Press again to switch between Dashboard / Entries tabs.',
-    keys: '⌘2',
   },
   { label: 'Open Settings', keys: '⌘,' },
 ] as const

@@ -8,14 +8,14 @@ import {
   Timer,
 } from 'lucide-react'
 
-import { groupEntriesByDay } from '@/features/stats/group-entries-by-day'
-import { ACTIVE_ENTRY_ID } from '@/features/stats/live-entries'
+import { groupEntriesByDay } from '@/features/entries/group-entries-by-day'
+import { ACTIVE_ENTRY_ID } from '@/features/entries/live-entries'
 import {
   periodEmptyMessage,
   visiblePeriodEntries,
   type Period,
-} from '@/features/stats/period'
-import { useLiveEntries } from '@/features/stats/use-live-entries'
+} from '@/features/entries/period'
+import { useLiveEntries } from '@/features/entries/use-live-entries'
 import { DEFAULT_WEEK_START, type Entry } from '@/lib/tauri'
 import { useTimerStore } from '@/store/timer-store'
 import { secsToSummaryLabel } from '@/utils/time'
@@ -133,7 +133,7 @@ function RunningEntryCard({ entry }: { entry: Entry }) {
   )
 }
 
-export function EntriesTab({
+export function EntriesList({
   period,
   yearRevealSteps,
   onShowMore,

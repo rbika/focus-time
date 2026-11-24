@@ -1,9 +1,9 @@
 # Focus Time
 
-A macOS menu bar timer. Running time is recorded as focused time the user can review in Stats, except Breaks.
+A macOS menu bar timer. Running time is recorded as focused time the user can review on Dashboard and in the Entries window, except Breaks.
 
 **Entry**:
-One contiguous stretch of focused time, bounded by a start and an end. A new or corrected Entry belongs to exactly one Calendar day. It is either **recorded** from a Start or Resume until Pause, Save of a running Interval, or natural completion, or **created** from Stats as a Manual entry. Persisted Entries are oldest-first by start, then by end. A new or corrected Entry is placed by start, not by when it was saved.
+One contiguous stretch of focused time, bounded by a start and an end. A new or corrected Entry belongs to exactly one Calendar day. It is either **recorded** from a Start or Resume until Pause, Save of a running Interval, or natural completion, or **created** from the Entries window as a Manual entry. Persisted Entries are oldest-first by start, then by end. A new or corrected Entry is placed by start, not by when it was saved.
 
 A recorded Interval produces an Entry when end is after start. A Manual entry is a draft until Save. After an Entry exists, start and end can be corrected (any duration is allowed as long as end is after start); a correction that would cross local midnight is a Midnight split — the existing Entry becomes the earliest piece, later pieces are new, Type is copied onto every piece. Type cannot be changed otherwise. An Entry can be deleted. All Entries can be deleted at once from Statistics. Resuming always begins a new Entry.
 
@@ -15,7 +15,7 @@ The engine's in-flight stretch of running time, from the most recent Start or Re
 _Avoid: using "interval" and "entry" interchangeably. An Interval is ephemeral; an Entry is persisted._
 
 **Active interval**:
-The currently running Interval, if any (`status === running`). Its elapsed time is `intervalElapsedSecs` from the snapshot. Stats can incorporate the active interval into totals and the entries list as a temporary, non-persisted "running" entry, except when the Interval is a Break. In the Entries list it is pinned to the top of its Calendar day. When the Interval ends (pause, save, completion, discard, or Skip) the active interval vanishes and may be replaced by a recorded Entry. A Midnight split records the earlier piece and the active interval continues from that midnight, except during a Break, which is not recorded.
+The currently running Interval, if any (`status === running`). Its elapsed time is `intervalElapsedSecs` from the snapshot. Dashboard and the Entries list can incorporate the active interval into totals and the list as a temporary, non-persisted "running" entry, except when the Interval is a Break. In the Entries list it is pinned to the top of its Calendar day. When the Interval ends (pause, save, completion, discard, or Skip) the active interval vanishes and may be replaced by a recorded Entry. A Midnight split records the earlier piece and the active interval continues from that midnight, except during a Break, which is not recorded.
 
 _Avoid: treating a paused engine as having an active interval — pause finalizes the Interval. Do not insert the running row by start among persisted Entries. Do not prepend it to the whole list._
 
@@ -30,7 +30,7 @@ Ending a running Interval without recording an Entry. The engine returns to Idle
 _Avoid: Delete (that removes a persisted Entry). Discard never touches existing Entries._
 
 **Type**:
-Timer, Stopwatch, Pomodoro, or Manual. Timer, Stopwatch, and Pomodoro are copied from the engine when an Interval is recorded. Pomodoro is only recorded from a Session, never a Break, and is shown with the tomato icon. Manual is only for entries created from Stats, shown with the square-pen icon.
+Timer, Stopwatch, Pomodoro, or Manual. Timer, Stopwatch, and Pomodoro are copied from the engine when an Interval is recorded. Pomodoro is only recorded from a Session, never a Break, and is shown with the tomato icon. Manual is only for entries created from the Entries window, shown with the square-pen icon.
 
 _Avoid: treating Manual as an engine mode. The menu bar is Timer, Stopwatch, or Pomodoro._
 
@@ -50,14 +50,19 @@ A rest phase of a Cycle — Short break or Long break. A countdown Interval in P
 _Avoid: treating a Break as focused time. Do not record a Break as an Entry._
 
 **Cycle**:
-The sequence of Sessions toward the next Long break. It returns to Session 1 when the Long break completes or is Skipped, and that Session is Waiting. Cancel also returns to Session 1, but leaves Waiting. Skip of a Short break does not reset the Cycle. The same Cycle is still the Cycle after quit, and after leaving the Pomodoro tab while idle.
+The sequence of Sessions toward the next Long break. It returns to Session 1 when the Long break completes or is Skipped, and that Session is Waiting. Cancel also returns to Session 1, but leaves Waiting. Skip of a Short break does not reset the Cycle. The same Cycle is still the Cycle after Quit, and after leaving the Pomodoro tab while idle.
 
 _Avoid: treating a Cycle as an Entry or as focused time._
 
 **Waiting**:
-The next phase of a Cycle is selected and has not started. Entered after a Session or Break completes (including while quit), after Skip, and after a Long break returns to Session 1. Cancel leaves it; first picking Pomodoro is not Waiting. Survives quit. A Session that completes while quit still records an Entry.
+The next phase of a Cycle is selected and has not started. Entered after a Session or Break completes, after Skip, and after a Long break returns to Session 1. Cancel leaves it; first picking Pomodoro is not Waiting. Survives Quit. A Session does not complete while the process is gone.
 
 _Avoid: Idle for this. Do not treat Cancel's Session 1 as Waiting. Do not treat a relaunch as Cancel._
+
+**Quit**:
+The process ending. Always Pauses: an in-flight Interval becomes an Entry if end is after start (a Break still does not), remaining freezes, Cycle and Waiting stay as they are. Includes tray Quit Focus Time, ⌘Q, Install and restart, and relaunch after the process died while Running — that last case Pauses as of the last moment the Interval was known to be Running.
+
+_Avoid: close, stop. Do not treat hiding the Timer window as Quit. Do not complete an Interval, fire a Notification, or play a Completion sound for time after the process is gone._
 
 **Cancel**:
 The running-view action that resets the Cycle to Session 1 and leaves Waiting. If a non-Break Interval is in flight and end is after start, Save or Discard first. A same-second Interval just resets. If a Break Interval is in flight, Discard immediately — no dialog. If already Waiting, only the Cycle is reset.
@@ -75,32 +80,42 @@ Settings that start the next Break or the next Session when the current phase co
 _Avoid: treating Skip as a finish that should auto-start._
 
 **Entry editor**:
-The Stats surface where an Entry's start and end are written. Add entry and opening an existing Entry are the same surface.
-_Avoid: add-entry screen, edit screen._
+The Entries window surface where an Entry's start and end are written. Add entry and opening an existing Entry are the same surface. Escape and hiding the Entries window discard unsaved edits and return to the list.
+_Avoid: add-entry screen, edit screen. Do not persist a draft on hide.__
 
 **Manual entry**:
-An Entry created from Stats rather than from a finished interval. Not persisted until Save. The entry editor has no Delete action while creating one.
+An Entry created from the Entries window rather than from a finished interval. Not persisted until Save. The entry editor has no Delete action while creating one.
 
 **Focused time**:
 The sum of Entry durations, regardless of type (Timer, Stopwatch, Pomodoro, or Manual). Breaks are not Entries and are not included.
 
 **Timer window**:
-The window opened and hidden by a tray left-click. It shows Timer or Stats; last view is kept across hide/show. Settings and the Update progress window are separate windows. A Notification click always shows and focuses this window and does not change the view — it never toggles hide, never closes siblings, and never moves focus into them. A leftover banner after quit relaunches the app and opens this window the same way.
+The window opened and hidden by a tray left-click. It always shows the timer on the left and Dashboard on the right, separated by a thin line below a full-width title bar. Settings, the Entries window, and the Update progress window are separate windows. A Notification click always shows and focuses this window — it never toggles hide, never closes siblings, and never moves focus into them. A leftover banner after quit relaunches the app and opens this window the same way. ⌘1 cycles Timer / Stopwatch / Pomodoro while idle or completed and not Waiting; it does not show or hide this window. Save or Discard overlays the timer and Dashboard; the title bar stays clickable.
 
-_Avoid: main window. Do not treat Stats as its own window. Do not treat a Notification click as Show Timer (⌘1) or as a tray toggle._
+_Avoid: main window. Do not treat Dashboard or the Entries list as views swapped inside this window. Do not treat a Notification click as ⌘1 or as a tray toggle. Do not cycle mode while running, paused, or Waiting._
+
+**Dashboard**:
+The right-hand pane of the Timer window. A Focus Time heading, then Today, This Week, and This Month focused-time totals, including the active interval except during a Break. While a non-break Interval is running, Today shows a live indicator. It is not a Period and has no year.
+
+_Avoid: Stats. Do not treat Dashboard as its own window, as a tab, or as a list of Entries. Do not put an All entries control here._
+
+**Entries window**:
+The separate window that lists Entries, newest-first by start, grouped by Calendar day. Opened from the title-bar icon to the left of Settings — no keyboard shortcut, no tray item. ⌘, from this window opens Settings. Closing it hides the window; it stays mounted until quit. Add entry and the Entry editor live here. Hiding it while the editor is open discards unsaved edits and returns to the list. The selected Period is kept until Quit. While it is visible, Today and the Entries grouping are for the current Calendar day — never a previous one, even while a newer load is in flight.
+
+_Avoid: Notes. Stats. Do not treat this as a view inside the Timer window. Do not spawn a second Entries window. Do not add a Show Entries shortcut._
 
 **Stats**:
-The view in the Timer window where focused time is reviewed: Dashboard totals and the Entries list. The Entries list is newest-first by start, grouped by Calendar day. While Dashboard or Entries is visible, Today, This Week, This Month, and the Entries grouping are for the current Calendar day — never a previous one, even while a newer load is in flight, and never only after switching tabs.
-_Avoid: Statistics for this view. Do not treat last-saved as newest. Do not treat Stats as a separate window._
+Retired as a UI surface. Focused time is reviewed on Dashboard and in the Entries window.
+_Avoid: using Stats as the name of a view or window. Statistics is a group on General._
 
 **Period**:
-This week (the default), This month, or This year. The Entries list shows only Entries whose Calendar day falls in the selected Period; This week is the seven Calendar days from the current Week start. This year is first the last three calendar months (clipped to 1 Jan), then extended backward three calendar months at a time, and earlier years are not listed.
+This week (the default), This month, or This year. The Entries list shows only Entries whose Calendar day falls in the selected Period; This week is the seven Calendar days from the current Week start. This year is first the last three calendar months (clipped to 1 Jan), then extended backward three calendar months at a time, and earlier years are not listed. The selected Period is kept until Quit.
 _Avoid: all, all time, range. Dashboard totals are not a Period — they include Today and have no year. Do not treat This week as a Monday–Sunday ISO week._
 
 **Settings**:
-The separate preferences window, with tabs General, Timer, Pomodoro, Notifications, Shortcuts, and About. Closing it hides the window; it stays mounted until quit.
+The separate preferences window, with tabs General, Timer, Pomodoro, Notifications, Shortcuts, and About. Opened from the Timer window gear, tray Settings…, or ⌘, from the Timer window or the Entries window. Closing it hides the window; it stays mounted until quit.
 
-_Avoid: Settings view. Do not treat Settings as a view inside the Timer window. Statistics is a group on General, not this window. Stats is the focused-time review surface._
+_Avoid: Settings view. Do not treat Settings as a view inside the Timer window. Statistics is a group on General, not this window._
 
 **Available sheet**:
 The window shown when a newer version exists. It names the latest version, the installed version, and the Release notes. Longer notes scroll; the window does not grow.
@@ -125,7 +140,7 @@ _Avoid: Error (that is a failed check or download). Ready to restart as a user-f
 **Notification**:
 The native macOS banner shown when a Timer Interval, Session, or Break completes naturally, if Allow notifications is on. Clicking one — including a leftover banner after quit — opens the Timer window. The banner has no action buttons. Clicks only work when the app runs from a `.app` bundle; under `tauri dev` the banner still shows but a click does nothing.
 
-_Avoid: Completion sound. Do not treat a click as Show Timer (⌘1) or as a tray toggle._
+_Avoid: Completion sound. Do not treat a click as ⌘1 or as a tray toggle._
 
 **Completion sound**:
 The sound played when a Timer Interval, Session, or Break completes naturally. Chosen in Settings → Notifications. None plays nothing.
@@ -134,7 +149,7 @@ _Avoid: alert, notification sound, chime. Not the notification banner._
 
 **Statistics**:
 The General Settings group for Week start and Reset statistics.
-_Avoid: using Statistics as the name of the Stats view._
+_Avoid: using Statistics as the name of a view. Stats is retired._
 
 **Week start**:
 The weekday a week begins on: Sunday or Monday. Chosen in Statistics. Default Monday. Dashboard This Week and Period This week are the seven local Calendar days from that weekday's midnight; changing Week start redefines This week immediately and does not rewrite Entries.
@@ -145,12 +160,12 @@ Deleting every persisted Entry after confirmation. An active Interval is left ru
 _Avoid: timer Reset (engine back to Idle). Do not treat this as Discard._
 
 **Calendar day**:
-The local-timezone midnight-to-midnight date an Entry belongs to, taken from its start time. A new or corrected Entry starts on that day; its end falls on that day or on the next local midnight. Dashboard totals and the Entries list both use this. A visible Stats surface always follows the current Calendar day, not the Calendar day of an earlier load.
+The local-timezone midnight-to-midnight date an Entry belongs to, taken from its start time. A new or corrected Entry starts on that day; its end falls on that day or on the next local midnight. Dashboard totals and the Entries list both use this. Dashboard and a visible Entries window always follow the current Calendar day, not the Calendar day of an earlier load.
 
 _Avoid: grouping by end time. Do not assume every persisted Entry already obeys the same-day bound. Do not require the end to fall on the start's date._
 
 **Today**:
-The current Calendar day in Stats: the Dashboard tile and the Entries list group of that name. This Week and This Month are the current week and calendar month that contain Today.
+The current Calendar day: the Dashboard total and the Entries list group of that name. This Week and This Month are the current week and calendar month that contain Today.
 
 _Avoid: treating a previous Calendar day's total as Today._
 

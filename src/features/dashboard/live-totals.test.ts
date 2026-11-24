@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import {
+  isTodayLive,
   selectLiveIntervalElapsedSecs,
   withActiveInterval,
 } from './live-totals.ts'
@@ -76,5 +77,48 @@ describe('selectLiveIntervalElapsedSecs', () => {
       }),
       0,
     )
+  })
+})
+
+describe('isTodayLive', () => {
+  it('is live from the first second of a non-break Interval', () => {
+    assert.equal(
+      isTodayLive({
+        status: 'running',
+        intervalElapsedSecs: 0,
+        isBreak: false,
+      }),
+      true,
+    )
+    assert.equal(
+      isTodayLive({
+        status: 'running',
+        intervalElapsedSecs: 12,
+        isBreak: false,
+      }),
+      true,
+    )
+  })
+
+  it('is not live while idle, paused, completed, or on a Break', () => {
+    for (const status of ['idle', 'paused', 'completed'] as const) {
+      assert.equal(
+        isTodayLive({
+          status,
+          intervalElapsedSecs: 12,
+          isBreak: false,
+        }),
+        false,
+      )
+    }
+    assert.equal(
+      isTodayLive({
+        status: 'running',
+        intervalElapsedSecs: 40,
+        isBreak: true,
+      }),
+      false,
+    )
+    assert.equal(isTodayLive(null), false)
   })
 })

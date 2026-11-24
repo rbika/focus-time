@@ -1,8 +1,8 @@
 import {
   selectLiveIntervalElapsedSecs,
   withActiveInterval,
-} from '@/features/stats/live-totals'
-import { useTotals } from '@/features/stats/use-totals'
+} from '@/features/dashboard/live-totals'
+import { useTotals } from '@/features/dashboard/use-totals'
 import { useTimerStore } from '@/store/timer-store'
 
 /** Persisted Dashboard totals plus the active interval while the engine is

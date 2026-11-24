@@ -3,8 +3,8 @@ import { useShallow } from 'zustand/react/shallow'
 import {
   selectActiveInterval,
   withActiveEntry,
-} from '@/features/stats/live-entries'
-import { useEntries } from '@/features/stats/use-entries'
+} from '@/features/entries/live-entries'
+import { useEntries } from '@/features/entries/use-entries'
 import { useTimerStore } from '@/store/timer-store'
 
 /** Persisted entries plus a synthetic running entry while the engine is

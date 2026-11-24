@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { useEntryRecordedData } from '@/features/stats/use-entry-recorded-data'
+import { useEntryRecordedData } from '@/features/focused-time/use-entry-recorded-data'
 import { api, onSettingsChanged, type Totals } from '@/lib/tauri'
 
 /** Fetches Dashboard totals and keeps them current when an Entry is

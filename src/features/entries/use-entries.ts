@@ -1,4 +1,4 @@
-import { useEntryRecordedData } from '@/features/stats/use-entry-recorded-data'
+import { useEntryRecordedData } from '@/features/focused-time/use-entry-recorded-data'
 import { api, type Entry } from '@/lib/tauri'
 
 /** Fetches all Entries (newest-first) and keeps them current when an Entry

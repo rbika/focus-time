@@ -30,7 +30,7 @@ import { useTimerStore } from '@/store/timer-store'
 import { cn } from '@/utils/cn'
 import { maskToSecs, secsToCompact, secsToMask } from '@/utils/time'
 
-export function TimerView({ active }: { active: boolean }) {
+export function TimerView() {
   const snapshot = useTimerStore((s) => s.snapshot)
   const settings = useTimerStore((s) => s.settings)
   const ready = useTimerStore((s) => s.ready)
@@ -264,10 +264,6 @@ export function TimerView({ active }: { active: boolean }) {
     dialogFrame.mounted,
     dismissDialog,
   ])
-
-  useEffect(() => {
-    if (!active) snapDialog()
-  }, [active, snapDialog])
 
   useEffect(() => {
     if (snapshot?.status !== 'running') dismissDialog()
